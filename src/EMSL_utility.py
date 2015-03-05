@@ -109,7 +109,8 @@ class EMSL_dump:
                    "dalton": "Dalton",
                    "demon-ks": "deMon-KS",
                    "demon2k": "deMon2k",
-                   "aces2": "AcesII"
+                   "aces2": "AcesII",
+                   "nwchem": "NWChem"
                    }
 
     def __init__(self, db_path=None, format="GAMESS-US", contraction="True"):
@@ -172,7 +173,26 @@ class EMSL_dump:
 
     def bl_raw_to_array(self, data_raw):
         """Parse the raw html to create a basis set array whith all the info:
-        url, name,description"""
+        url, name, description
+
+        Explanation of tuple data from 'tup' by index:
+
+        0  - path to xml file
+        1  - basis set name
+        2  - categorization: "dftcfit", "dftorb", "dftxfit", "diffuse",
+             "ecporb","effective core potential", "orbital", "polarization",
+             "rydberg", or "tight"
+        3  - parameterized elements by symbol e.g. '[H, He, B, C, N, O, F, Ne]'
+        4  - curation status; only 'published' is trustworthy
+        5  - boolean: has ECP
+        6  - boolean: has spin
+        7  - last modified date
+        8  - name of primary developer
+        9  - name of contributor
+        10 - human-readable summary/description of basis set
+        """
+
+        known_elements = self.get_dict_ele().keys()
 
         d = {}
 
@@ -184,10 +204,16 @@ class EMSL_dump:
                 s = line[b + 1:e]
 
                 tup = eval(s)
+
+                #non-published (e.g. rejected) basis sets should be ignored
+                if tup[4] != "published":
+                    continue
                 xml_path = tup[0]
                 name = tup[1]
 
-                elts = re.sub('[["\ \]]', '', tup[3]).split(',')
+                raw_elts = re.sub('[["\ \]]', '', tup[3]).split(',')
+                #filter out weird elements from exotic basis sets, e.g. Uuu
+                elts = [e for e in raw_elts if e.lower() in known_elements]
 
                 des = re.sub('\s+', ' ', tup[-1])
 
@@ -215,15 +241,22 @@ class EMSL_dump:
                 print data
             raise Exception("WARNING not DATA")
         else:
-            data = data.replace("PHOSPHOROUS", "PHOSPHORUS")
-            data = data.replace("D+", "E+")
-            data = data.replace("D-", "E-")
+            #ELEM replacements are required by buggy CRENBL ECP basis set
+            replacements = [("PHOSPHOROUS", "PHOSPHORUS"),
+                            ("D+", "E+"),
+                            ("D-", "E-"),
+                            ("ELEMTN113", "Ununtrium".upper()),
+                            ("ELEMENT115", "Ununpentium".upper()),
+                            ("ELEMENT117", "Ununseptium".upper())]
 
-            data = data[b + 5:e - 1].split('\n\n')
+            for old, new in replacements:
+                data = data.replace(old, new)
+
+            split_data = data[b + 5:e - 1].split('\n\n')
 
             dict_ele = self.get_dict_ele()
 
-            for (elt, data_elt) in zip(elts, data):
+            for (elt, data_elt) in zip(elts, split_data):
 
                 elt_long_th = dict_ele[elt.lower()]
                 elt_long_exp = data_elt.split()[0].lower()
@@ -240,7 +273,7 @@ class EMSL_dump:
                         print "th", elt_long_th
                         print "exp", elt_long_exp
                         print "abv", elt
-                    raise Exception("WARNING not good ELEMENT")
+                    sys.stderr.write("WARNING not good ELEMENT\n")
 
         return [name, des, d]
 
@@ -280,7 +313,7 @@ class EMSL_dump:
         import Queue
         import threading
 
-        num_worker_threads = 7
+        num_worker_threads = 1
         attemps_max = 20
 
         q_in = Queue.Queue(num_worker_threads)
@@ -289,6 +322,7 @@ class EMSL_dump:
         def worker():
             """get a Job from the q_in, do stuff, when finish put it in the q_out"""
             while True:
+                basis_data = []
                 name, path_xml, des, elts = q_in.get()
 
                 url = "https://bse.pnl.gov:443/bse/portal/user/anon/js_peid/11535052407933/action/portlets.BasisSetAction/template/courier_content/panel/Main/"
@@ -301,6 +335,9 @@ class EMSL_dump:
 
                 attemps = 0
                 while attemps < attemps_max:
+                    m = "URL: {0} params {1} attempt {2}".format(url, params,
+                                                                 attemps)
+                    print m
                     text = self.requests.get(url, params=params).text
                     try:
                         basis_data = self.basis_data_row_to_array(
@@ -323,6 +360,7 @@ class EMSL_dump:
 
         def enqueue():
             for [name, path_xml, des, elts] in list_basis_array:
+                print "PARAMS", [name, path_xml, des, elts]
                 q_in.put([name, path_xml, des, elts])
 
             return 0
