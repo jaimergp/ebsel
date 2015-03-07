@@ -95,25 +95,7 @@ def cond_sql_or(table_name, l_value):
 
 class EMSL_dump:
 
-    format_dict = {"g94": "Gaussian94",
-                   "gamess-us": "GAMESS-US",
-                   "gamess-uk": "GAMESS-UK",
-                   "turbomole": "Turbomole",
-                   "tx93": "TX93",
-                   "molpro": "Molpro",
-                   "molproint": "MolproInt",
-                   "hondo": "Hondo",
-                   "supermolecule": "SuperMolecule",
-                   "molcas": "Molcas",
-                   "hyperchem": "HyperChem",
-                   "dalton": "Dalton",
-                   "demon-ks": "deMon-KS",
-                   "demon2k": "deMon2k",
-                   "aces2": "AcesII",
-                   "nwchem": "NWChem"
-                   }
-
-    def __init__(self, db_path=None, format="GAMESS-US", contraction="True"):
+    def __init__(self, db_path=None, format="gamess-us", contraction="True"):
         self.db_path = db_path
         self.format = format
         self.contraction = str(contraction)
@@ -124,6 +106,28 @@ class EMSL_dump:
             install_with_pip("requests")
         finally:
             self.requests = requests
+
+        self.format_dict = {"g94": {"name" : "Gaussian94", "parser" : None},
+                            "gamess-us": {"name" : "GAMESS-US",
+                                          "parser" : self.parse_basis_data_gamess_us},
+                            "gamess-uk": {"name" : "GAMESS-UK", "parser" : None},
+                            "turbomole": {"name" : "Turbomole", "parser" : None},
+                            "tx93": {"name" : "TX93", "parser" : None},
+                            "molpro": {"name" : "Molpro", "parser" : "None"},
+                            "molproint": {"name" : "MolproInt", "parser" : None},
+                            "hondo": {"name" : "Hondo", "parser" : None},
+                            "supermolecule": {"name" : "SuperMolecule",
+                                              "parser" : None},
+                            "molcas": {"name" : "Molcas", "parser" : None},
+                            "hyperchem": {"name" : "HyperChem", "parser" : None},
+                            "dalton": {"name" : "Dalton", "parser" : None},
+                            "demon-ks": {"name" : "deMon-KS", "parser" : None},
+                            "demon2k": {"name" : "deMon2k", "parser" : None},
+                            "aces2": {"name" : "AcesII", "parser" : None},
+                            "nwchem": {"name" : "NWChem",
+                                       "parser" : self.parse_basis_data_nwchem}
+                        }
+
 
     def get_list_format(self):
         """List all the format available in EMSL"""
@@ -136,6 +140,8 @@ class EMSL_dump:
     def get_dict_ele(self):
         """A dict of element"""
         elt_path = os.path.dirname(sys.argv[0]) + "/src/elts_abrev.dat"
+        if not os.path.exists(elt_path):
+            elt_path = "src/elts_abrev.dat"
 
         with open(elt_path, "r") as f:
             data = f.readlines()
@@ -229,8 +235,69 @@ class EMSL_dump:
 
         return array_sort
 
-    def basis_data_row_to_array(self, data, name, des, elts):
-        """Parse the basis data raw html to get a nice tuple"""
+    def parse_basis_data_nwchem(self, data, name, description, elements):
+        """Parse the NWChem basis data raw html to get a nice tuple.
+
+        N.B.: Currently ignores ECP data!
+
+        @param data: raw HTML from BSE
+        @type data : unicode
+        @param name: basis set name
+        @type name : str
+        @param des: basis set description
+        @type des : str
+        @param elements: element symbols e.g. ['H', 'C', 'N', 'O', 'Cl']
+        @type elements : list
+        @return: (name, description, data-per-element)
+        @rtype : tuple
+        """
+
+        d = []
+
+        begin_marker = """BASIS "ao basis" PRINT"""
+        end_marker = "END"
+        begin = data.find(begin_marker)
+        end = data.find(end_marker)
+        
+        if begin == -1:
+            if debug:
+                print(data)
+            raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
+
+        trimmed = data[begin+len(begin_marker) : end-len(end_marker)].strip()
+        chunks = []
+        lines = []
+
+        #group lines of data delimited by #BASIS SET... into per-element chunks
+        for line in trimmed.split("\n"):
+            if line.startswith("#BASIS SET"):
+                if lines:
+                    chunks.append(lines)
+                lines = []
+            else:
+                lines.append(line)
+
+        #handle trailing chunk that is not followed by another #BASIS SET...
+        if lines and lines != chunks[-1]:
+            chunks.append(lines)
+
+        #join lines back into solid text blocks
+        chunks = ["\n".join(c) for c in chunks]
+
+        #check each block for element
+        unused_elements = set(elements)
+        for chunk in chunks:
+            symbol = chunk[:3].strip()
+            unused_elements.remove(symbol)
+
+        if unused_elements:
+            msg = "Warning: elements {0} left over for {1}".format(list(unused_elements), name)
+            print(msg)
+
+        return (name, description, chunks)
+        
+    def parse_basis_data_gamess_us(self, data, name, des, elts):
+        """Parse the GAMESS-US basis data raw html to get a nice tuple"""
 
         d = []
 
@@ -321,6 +388,10 @@ class EMSL_dump:
 
         def worker():
             """get a Job from the q_in, do stuff, when finish put it in the q_out"""
+            parser_method = self.format_dict[self.format]["parser"]
+            if parser_method is None:
+                raise NotImplementedError("No parser currently available for {0} data".format(self.format))
+                
             while True:
                 basis_data = []
                 name, path_xml, des, elts = q_in.get()
@@ -339,23 +410,32 @@ class EMSL_dump:
                                                                  attemps)
                     print m
                     text = self.requests.get(url, params=params).text
+
+                    #begin
+                    import codecs
+                    bsfname = name.replace("+", "p").replace(" ", "_").replace("*", "s").replace("/", "-") + ".html"
+                    f = codecs.open(bsfname, "w", "utf-8")
+                    f.write(text)
+                    f.close()
+                    break
+                    #end
+                    
                     try:
-                        basis_data = self.basis_data_row_to_array(
-                            text, name, des, elts)
+                        basis_data = parser_method(text, name, des, elts)
                     except:
                         time.sleep(0.1)
                         attemps += 1
                     else:
                         break
 
-                try:
+                """try:
                     q_out.put(basis_data)
                 except:
                     if debug:
                         print "Fail on q_out.put", basis_data
                     raise
                 else:
-                    q_in.task_done()
+                    q_in.task_done()"""
 
 
         def enqueue():
