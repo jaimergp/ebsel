@@ -273,7 +273,7 @@ class EMSL_dump:
             if line.startswith("#BASIS SET"):
                 if lines:
                     chunks.append(lines)
-                lines = []
+                lines = [line]
             else:
                 lines.append(line)
 
@@ -287,7 +287,8 @@ class EMSL_dump:
         #check each block for element
         unused_elements = set(elements)
         for chunk in chunks:
-            symbol = chunk[:3].strip()
+            #get first 3 chars of second line in block
+            symbol = chunk.split("\n")[1][:3].strip()
             unused_elements.remove(symbol)
 
         if unused_elements:

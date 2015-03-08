@@ -22,7 +22,8 @@ class ParserTestCase(unittest.TestCase):
 
     def test_nwchem_basic(self):
         #extract basis set data from a popular Pople basis
-        helium = """He    S
+        helium = """#BASIS SET: (4s) -> [2s]
+He    S
      38.4216340              0.0237660        
       5.7780300              0.1546790        
       1.2417740              0.4696300        
