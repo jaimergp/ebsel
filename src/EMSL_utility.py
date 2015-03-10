@@ -438,7 +438,6 @@ class EMSL_dump:
                     try:
                         basis_data = parser_method(text, name, des, elts)
                     except:
-                        import ipdb; ipdb.set_trace()
                         time.sleep(0.1)
                         attemps += 1
                     else:
@@ -495,8 +494,7 @@ class EMSL_dump:
 
             except:
                 print '{:>3}'.format(i + 1), "/", nb_basis, name, "fail"
-                #raise
-                import ipdb; ipdb.set_trace()
+                raise
 
         conn.close()
 
@@ -558,70 +556,38 @@ class EMSL_local:
         conn.close()
         return data
 
-    def get_basis(self, basis_name, elts=None, with_l=False):
-
-        import re
-
-        def get_list_type(l_line):
-            l = []
-            for i, line in enumerate(l_line):
-
-                m = re.search(p, line)
-                if m:
-                    l.append([m.group(1), i])
-                    try:
-                        l[-2].append(i)
-                    except IndexError:
-                        pass
-
-            l[-1].append(i + 1)
-            return l
-
-        #  __            _
-        # /__  _ _|_   _|_ ._ _  ._ _     _  _. |
-        # \_| (/_ |_    |  | (_) | | |   _> (_| |
-        #                                     |
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-
-        if elts:
-            cmd_ele = "AND " + " ".join(cond_sql_or("elt", elts))
-        else:
-            cmd_ele = ""
-
-        c.execute('''SELECT DISTINCT data from output_tab
-                   WHERE name="{basis_name}" COLLATE NOCASE
-                   {cmd_ele}'''.format(basis_name=basis_name,
-                                       cmd_ele=cmd_ele))
-
-        l_data_raw = c.fetchall()
-        conn.close()
-
-        # |_|  _. ._   _| |  _    || | ||
-        # | | (_| | | (_| | (/_      |_
-        #
-
+    def get_list_type(self, l_line):
         p = re.compile(ur'^(\w)\s+\d+\b')
+        l = []
+        for i, line in enumerate(l_line):
+            m = re.search(p, line)
+            if m:
+                l.append([m.group(1), i])
+                try:
+                    l[-2].append(i)
+                except IndexError:
+                    pass
 
-        l_data = []
+        l[-1].append(i + 1)
+        return l
 
+    def process_raw_data(self, l_data_raw, with_l):
+        # |_|  _. ._   _| |  _    || | ||
+        # | | (_| | | (_|./EMSL_api.py get_basis_data --basis=cc-pwCV5Z-RI --atom=Cd | (/_      |_
+        #
         for data_raw in l_data_raw:
-
             basis = data_raw[0].strip()
-
             l_line_raw = basis.split("\n")
-
             l_line = [l_line_raw[0]]
 
-            for symmetry, begin, end in get_list_type(l_line_raw):
-
+            for symmetry, begin, end in self.get_list_type(l_line_raw):
+                #"L" shells designate an S and P shell with the same exponent.
+                #If with_l is False, they will be expanded into S and P
                 if not(with_l) and symmetry in "L":
-
                     body_s = []
                     body_p = []
 
                     for i_l in l_line_raw[begin + 1:end]:
-
                         a = i_l.split()
 
                         common = "{:>3}".format(a[0])
@@ -642,6 +608,31 @@ class EMSL_local:
                     l_line += l_line_raw[begin:end]
 
             l_data.append("\n".join(l_line))
+            
+        return l_data
+
+    def get_basis(self, basis_name, elts=None, with_l=False):
+        #  __            _
+        # /__  _ _|_   _|_ ._ _  ._ _     _  _. |
+        # \_| (/_ |_    |  | (_) | | |   _> (_| |
+        #                                     |
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+
+        if elts:
+            cmd_ele = "AND " + " ".join(cond_sql_or("elt", elts))
+        else:
+            cmd_ele = ""
+
+        c.execute('''SELECT DISTINCT data from output_tab
+                   WHERE name="{basis_name}" COLLATE NOCASE
+                   {cmd_ele}'''.format(basis_name=basis_name,
+                                       cmd_ele=cmd_ele))
+
+        l_data_raw = c.fetchall()
+        conn.close()
+
+        l_data = self.process_raw_data(l_data_raw, with_l)
 
         return l_data
 
