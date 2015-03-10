@@ -94,8 +94,26 @@ def cond_sql_or(table_name, l_value):
 
 
 class EMSL_dump:
-
-    def __init__(self, db_path=None, format="gamess-us", contraction="True"):
+    
+    format_dict = {"g94": "Gaussian94",
+                   "gamess-us": "GAMESS-US",
+                   "gamess-uk": "GAMESS-UK",
+                   "turbomole": "Turbomole",
+                   "tx93": "TX93",
+                   "molpro": "Molpro",
+                   "molproint": "MolproInt",
+                   "hondo": "Hondo",
+                   "supermolecule": "SuperMolecule",
+                   "molcas": "Molcas",
+                   "hyperchem": "HyperChem",
+                   "dalton": "Dalton",
+                   "demon-ks": "deMon-KS",
+                   "demon2k": "deMon2k",
+                   "aces2": "AcesII",
+                   "nwchem" : "NWChem"
+                   }
+                        
+    def __init__(self, db_path=None, format="GAMESS-US", contraction="True"):
         self.db_path = db_path
         self.format = format
         self.contraction = str(contraction)
@@ -107,27 +125,8 @@ class EMSL_dump:
         finally:
             self.requests = requests
 
-        self.format_dict = {"g94": {"name" : "Gaussian94", "parser" : None},
-                            "gamess-us": {"name" : "GAMESS-US",
-                                          "parser" : self.parse_basis_data_gamess_us},
-                            "gamess-uk": {"name" : "GAMESS-UK", "parser" : None},
-                            "turbomole": {"name" : "Turbomole", "parser" : None},
-                            "tx93": {"name" : "TX93", "parser" : None},
-                            "molpro": {"name" : "Molpro", "parser" : "None"},
-                            "molproint": {"name" : "MolproInt", "parser" : None},
-                            "hondo": {"name" : "Hondo", "parser" : None},
-                            "supermolecule": {"name" : "SuperMolecule",
-                                              "parser" : None},
-                            "molcas": {"name" : "Molcas", "parser" : None},
-                            "hyperchem": {"name" : "HyperChem", "parser" : None},
-                            "dalton": {"name" : "Dalton", "parser" : None},
-                            "demon-ks": {"name" : "deMon-KS", "parser" : None},
-                            "demon2k": {"name" : "deMon2k", "parser" : None},
-                            "aces2": {"name" : "AcesII", "parser" : None},
-                            "nwchem": {"name" : "NWChem",
-                                       "parser" : self.parse_basis_data_nwchem}
-                        }
-
+        self.parser_map = {"GAMESS-US" : self.parse_basis_data_gamess_us,
+                           "NWChem" : self.parse_basis_data_nwchem}
 
     def get_list_format(self):
         """List all the format available in EMSL"""
@@ -238,6 +237,11 @@ class EMSL_dump:
     def parse_basis_data_nwchem(self, data, name, description, elements):
         """Parse the NWChem basis data raw html to get a nice tuple.
 
+        The data-pairs item is actually expected to be a 2 item list:
+        [symbol, data]
+
+        e.g. ["Ca", "#BASIS SET..."]
+
         N.B.: Currently ignores ECP data!
 
         @param data: raw HTML from BSE
@@ -248,15 +252,23 @@ class EMSL_dump:
         @type des : str
         @param elements: element symbols e.g. ['H', 'C', 'N', 'O', 'Cl']
         @type elements : list
-        @return: (name, description, data-per-element)
+        @return: (name, description, data-pairs)
         @rtype : tuple
         """
 
         d = []
 
-        begin_marker = """BASIS "ao basis" PRINT"""
+        begin_markers = ["""BASIS "ao basis" PRINT""",
+                         """BASIS "cd basis" PRINT""",
+                         """BASIS "xc basis" PRINT"""]
         end_marker = "END"
-        begin = data.find(begin_marker)
+
+        #search for one of the possible basis set data begin markers
+        for begin_marker in begin_markers:
+            begin = data.find(begin_marker)
+            if begin != -1:
+                break
+                
         end = data.find(end_marker)
         
         if begin == -1:
@@ -278,24 +290,26 @@ class EMSL_dump:
                 lines.append(line)
 
         #handle trailing chunk that is not followed by another #BASIS SET...
-        if lines and lines != chunks[-1]:
+        if lines and (not chunks or lines != chunks[-1]):
             chunks.append(lines)
 
         #join lines back into solid text blocks
         chunks = ["\n".join(c) for c in chunks]
 
-        #check each block for element
+        #check each block for element and assign symbols to final pairs
+        pairs = []
         unused_elements = set(elements)
         for chunk in chunks:
             #get first 3 chars of second line in block
             symbol = chunk.split("\n")[1][:3].strip()
             unused_elements.remove(symbol)
+            pairs.append([symbol, chunk])
 
         if unused_elements:
             msg = "Warning: elements {0} left over for {1}".format(list(unused_elements), name)
             print(msg)
 
-        return (name, description, chunks)
+        return (name, description, pairs)
         
     def parse_basis_data_gamess_us(self, data, name, des, elts):
         """Parse the GAMESS-US basis data raw html to get a nice tuple"""
@@ -389,10 +403,10 @@ class EMSL_dump:
 
         def worker():
             """get a Job from the q_in, do stuff, when finish put it in the q_out"""
-            parser_method = self.format_dict[self.format]["parser"]
+            parser_method = self.parser_map[self.format]
             if parser_method is None:
                 raise NotImplementedError("No parser currently available for {0} data".format(self.format))
-                
+
             while True:
                 basis_data = []
                 name, path_xml, des, elts = q_in.get()
@@ -413,30 +427,31 @@ class EMSL_dump:
                     text = self.requests.get(url, params=params).text
 
                     #begin
-                    import codecs
+                    """import codecs
                     bsfname = name.replace("+", "p").replace(" ", "_").replace("*", "s").replace("/", "-") + ".html"
                     f = codecs.open(bsfname, "w", "utf-8")
                     f.write(text)
                     f.close()
-                    break
+                    break"""
                     #end
                     
                     try:
                         basis_data = parser_method(text, name, des, elts)
                     except:
+                        import ipdb; ipdb.set_trace()
                         time.sleep(0.1)
                         attemps += 1
                     else:
                         break
 
-                """try:
+                try:
                     q_out.put(basis_data)
                 except:
                     if debug:
                         print "Fail on q_out.put", basis_data
                     raise
                 else:
-                    q_in.task_done()"""
+                    q_in.task_done()
 
 
         def enqueue():
@@ -480,7 +495,8 @@ class EMSL_dump:
 
             except:
                 print '{:>3}'.format(i + 1), "/", nb_basis, name, "fail"
-                raise
+                #raise
+                import ipdb; ipdb.set_trace()
 
         conn.close()
 

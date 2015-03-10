@@ -21,7 +21,7 @@ class ParserTestCase(unittest.TestCase):
         pass
 
     def test_nwchem_basic(self):
-        #extract basis set data from a popular Pople basis
+        #extract basis set data from a popular Pople basis set
         helium = """#BASIS SET: (4s) -> [2s]
 He    S
      38.4216340              0.0237660        
@@ -30,18 +30,36 @@ He    S
 He    S
       0.2979640              1.0000000        """
         
-        ed = EMSL_dump(None, format="nwchem")
+        ed = EMSL_dump(None, format="NWChem")
         name = "6-31G*"
         description = "6-31G* Split Valence + Polarization Basis"
         elements = "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn".split()
         with open("tests/samples/nwchem-6-31Gs.html") as infile:
             text = infile.read()
 
-        parser_method = ed.format_dict[ed.format]["parser"]
+        parser_method = ed.parser_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         self.assertEquals(len(elements), len(parsed))
-        self.assertEquals(helium, parsed[1])
+        self.assertEquals("He", parsed[1][0])
+        self.assertEquals(helium, parsed[1][1])
+
+    def test_nwchem_single(self):
+        #Code did not handle a single-element basis set before
+        ed = EMSL_dump(None, format="NWChem")
+        name = "B2 basis set for Zn"
+        description = "N/A"
+        elements = ["Zn"]
+        with open("tests/samples/nwchem-B2_basis_set_for_Zn.html") as infile:
+            text = infile.read()
+
+        parser_method = ed.parser_map[ed.format]
+        name, description, parsed = parser_method(text, name, description,
+                                                  elements)
+        self.assertEquals(1, len(parsed))
+        self.assertEquals("Zn", parsed[0][0])
+        
+        
 
 def runSuite(cls, verbosity=2, name=None):
     """Run a unit test suite and return status code.

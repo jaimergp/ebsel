@@ -150,7 +150,7 @@ if __name__ == '__main__':
 
         e = EMSL_dump(
             db_path=db_path,
-            format=format_dict[format]['name'],
+            format=format_dict[format],
             contraction=contraction)
         e.new_db()
 
