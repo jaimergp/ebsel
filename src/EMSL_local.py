@@ -75,8 +75,74 @@ class EMSL_local:
     def __init__(self, db_path, fmt="gamess-us"):
         self.db_path = db_path
         self.fmt = fmt
-        print self.fmt
+        self.shells = "S P D F G H I K L M".split()
+        self.maximum_angular_momentum = "S"
+        self.am_checkers = {"gamess-us" : self.check_gamess_us,
+                            "nwchem" : self.check_nwchem}
 
+    def check_gamess_us(self, basis_blocks):
+        """GAMESS-US supports only up to G basis functions. See if any
+        basis blocks have higher basis functions.
+
+        @param basis_blocks: blocks of basis set data
+        @type basis_blocks : list
+        @return: (max_basis_fn, too_large)
+        @rtype : tuple
+        """
+
+        shells = set(self.shells)
+        greatest = 0
+
+        for block in basis_blocks:
+            for line in block.split("\n"):
+                pieces = line.split()
+                try:
+                    b = pieces[0]
+                    index = self.shells.index(b)
+                    greatest = max(greatest, index)
+                except (IndexError, ValueError):
+                    pass
+
+        mbf = self.shells[greatest]
+        if greatest > self.shells.index("G"):
+            too_large = True
+        else:
+            too_large = False
+
+        return (mbf, too_large)
+
+
+    def check_nwchem(self, basis_blocks):
+        """NWChem supports only up to I basis functions. See if any
+        basis blocks have higher basis functions.
+
+        @param basis_blocks: blocks of basis set data
+        @type basis_blocks : list
+        @return: (max_basis_fn, too_large)
+        @rtype : tuple
+        """
+
+        shells = set(self.shells)
+        greatest = 0
+
+        for block in basis_blocks:
+            for line in block.split("\n")[1:]:
+                pieces = line.split()
+                try:
+                    b = pieces[1]
+                    index = self.shells.index(b)
+                    greatest = max(greatest, index)
+                except (IndexError, ValueError):
+                    pass
+
+        mbf = self.shells[greatest]
+        if greatest > self.shells.index("I"):
+            too_large = True
+        else:
+            too_large = False
+
+        return (mbf, too_large)
+    
     def get_list_basis_available(self, elts=[]):
 
         conn = sqlite3.connect(self.db_path)
@@ -120,6 +186,13 @@ class EMSL_local:
 
     def process_raw_data(self, l_data_raw):
         unpacked = [b[0] for b in l_data_raw]
+        validator = self.am_checkers[self.fmt]
+        max_am, too_large = validator(unpacked)
+
+        if too_large:
+            msg = "WARNING: Basis set data contains angular momentum up to {0}, which is too high for {1}\n".format(max_am, self.fmt)
+            sys.stderr.write(msg)
+            
         return unpacked
 
     def get_basis(self, basis_name, elts=None):
