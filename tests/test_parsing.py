@@ -11,7 +11,7 @@
 
 import sys
 import unittest
-from src.EMSL_utility import EMSL_dump
+from src.EMSL_dump import EMSL_dump
 
 class ParserTestCase(unittest.TestCase):
     def setUp(self):
