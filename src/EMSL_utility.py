@@ -94,7 +94,7 @@ def cond_sql_or(table_name, l_value):
 
 
 class EMSL_dump:
-
+    
     format_dict = {"g94": "Gaussian94",
                    "gamess-us": "GAMESS-US",
                    "gamess-uk": "GAMESS-UK",
@@ -109,9 +109,10 @@ class EMSL_dump:
                    "dalton": "Dalton",
                    "demon-ks": "deMon-KS",
                    "demon2k": "deMon2k",
-                   "aces2": "AcesII"
+                   "aces2": "AcesII",
+                   "nwchem" : "NWChem"
                    }
-
+                        
     def __init__(self, db_path=None, format="GAMESS-US", contraction="True"):
         self.db_path = db_path
         self.format = format
@@ -124,6 +125,9 @@ class EMSL_dump:
         finally:
             self.requests = requests
 
+        self.parser_map = {"GAMESS-US" : self.parse_basis_data_gamess_us,
+                           "NWChem" : self.parse_basis_data_nwchem}
+
     def get_list_format(self):
         """List all the format available in EMSL"""
         return self.format_dict
@@ -135,6 +139,8 @@ class EMSL_dump:
     def get_dict_ele(self):
         """A dict of element"""
         elt_path = os.path.dirname(sys.argv[0]) + "/src/elts_abrev.dat"
+        if not os.path.exists(elt_path):
+            elt_path = "src/elts_abrev.dat"
 
         with open(elt_path, "r") as f:
             data = f.readlines()
@@ -172,7 +178,26 @@ class EMSL_dump:
 
     def bl_raw_to_array(self, data_raw):
         """Parse the raw html to create a basis set array whith all the info:
-        url, name,description"""
+        url, name, description
+
+        Explanation of tuple data from 'tup' by index:
+
+        0  - path to xml file
+        1  - basis set name
+        2  - categorization: "dftcfit", "dftorb", "dftxfit", "diffuse",
+             "ecporb","effective core potential", "orbital", "polarization",
+             "rydberg", or "tight"
+        3  - parameterized elements by symbol e.g. '[H, He, B, C, N, O, F, Ne]'
+        4  - curation status; only 'published' is trustworthy
+        5  - boolean: has ECP
+        6  - boolean: has spin
+        7  - last modified date
+        8  - name of primary developer
+        9  - name of contributor
+        10 - human-readable summary/description of basis set
+        """
+
+        known_elements = self.get_dict_ele().keys()
 
         d = {}
 
@@ -184,10 +209,16 @@ class EMSL_dump:
                 s = line[b + 1:e]
 
                 tup = eval(s)
+
+                #non-published (e.g. rejected) basis sets should be ignored
+                if tup[4] != "published":
+                    continue
                 xml_path = tup[0]
                 name = tup[1]
 
-                elts = re.sub('[["\ \]]', '', tup[3]).split(',')
+                raw_elts = re.sub('[["\ \]]', '', tup[3]).split(',')
+                #filter out weird elements from exotic basis sets, e.g. Uuu
+                elts = [e for e in raw_elts if e.lower() in known_elements]
 
                 des = re.sub('\s+', ' ', tup[-1])
 
@@ -203,8 +234,85 @@ class EMSL_dump:
 
         return array_sort
 
-    def basis_data_row_to_array(self, data, name, des, elts):
-        """Parse the basis data raw html to get a nice tuple"""
+    def parse_basis_data_nwchem(self, data, name, description, elements):
+        """Parse the NWChem basis data raw html to get a nice tuple.
+
+        The data-pairs item is actually expected to be a 2 item list:
+        [symbol, data]
+
+        e.g. ["Ca", "#BASIS SET..."]
+
+        N.B.: Currently ignores ECP data!
+
+        @param data: raw HTML from BSE
+        @type data : unicode
+        @param name: basis set name
+        @type name : str
+        @param des: basis set description
+        @type des : str
+        @param elements: element symbols e.g. ['H', 'C', 'N', 'O', 'Cl']
+        @type elements : list
+        @return: (name, description, data-pairs)
+        @rtype : tuple
+        """
+
+        d = []
+
+        begin_markers = ["""BASIS "ao basis" PRINT""",
+                         """BASIS "cd basis" PRINT""",
+                         """BASIS "xc basis" PRINT"""]
+        end_marker = "END"
+
+        #search for one of the possible basis set data begin markers
+        for begin_marker in begin_markers:
+            begin = data.find(begin_marker)
+            if begin != -1:
+                break
+                
+        end = data.find(end_marker)
+        
+        if begin == -1:
+            if debug:
+                print(data)
+            raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
+
+        trimmed = data[begin+len(begin_marker) : end-len(end_marker)].strip()
+        chunks = []
+        lines = []
+
+        #group lines of data delimited by #BASIS SET... into per-element chunks
+        for line in trimmed.split("\n"):
+            if line.startswith("#BASIS SET"):
+                if lines:
+                    chunks.append(lines)
+                lines = [line]
+            else:
+                lines.append(line)
+
+        #handle trailing chunk that is not followed by another #BASIS SET...
+        if lines and (not chunks or lines != chunks[-1]):
+            chunks.append(lines)
+
+        #join lines back into solid text blocks
+        chunks = ["\n".join(c) for c in chunks]
+
+        #check each block for element and assign symbols to final pairs
+        pairs = []
+        unused_elements = set(elements)
+        for chunk in chunks:
+            #get first 3 chars of second line in block
+            symbol = chunk.split("\n")[1][:3].strip()
+            unused_elements.remove(symbol)
+            pairs.append([symbol, chunk])
+
+        if unused_elements:
+            msg = "Warning: elements {0} left over for {1}".format(list(unused_elements), name)
+            print(msg)
+
+        return (name, description, pairs)
+        
+    def parse_basis_data_gamess_us(self, data, name, des, elts):
+        """Parse the GAMESS-US basis data raw html to get a nice tuple"""
 
         d = []
 
@@ -215,15 +323,22 @@ class EMSL_dump:
                 print data
             raise Exception("WARNING not DATA")
         else:
-            data = data.replace("PHOSPHOROUS", "PHOSPHORUS")
-            data = data.replace("D+", "E+")
-            data = data.replace("D-", "E-")
+            #ELEM replacements are required by buggy CRENBL ECP basis set
+            replacements = [("PHOSPHOROUS", "PHOSPHORUS"),
+                            ("D+", "E+"),
+                            ("D-", "E-"),
+                            ("ELEMTN113", "Ununtrium".upper()),
+                            ("ELEMENT115", "Ununpentium".upper()),
+                            ("ELEMENT117", "Ununseptium".upper())]
 
-            data = data[b + 5:e - 1].split('\n\n')
+            for old, new in replacements:
+                data = data.replace(old, new)
+
+            split_data = data[b + 5:e - 1].split('\n\n')
 
             dict_ele = self.get_dict_ele()
 
-            for (elt, data_elt) in zip(elts, data):
+            for (elt, data_elt) in zip(elts, split_data):
 
                 elt_long_th = dict_ele[elt.lower()]
                 elt_long_exp = data_elt.split()[0].lower()
@@ -240,7 +355,7 @@ class EMSL_dump:
                         print "th", elt_long_th
                         print "exp", elt_long_exp
                         print "abv", elt
-                    raise Exception("WARNING not good ELEMENT")
+                    sys.stderr.write("WARNING not good ELEMENT\n")
 
         return [name, des, d]
 
@@ -280,7 +395,7 @@ class EMSL_dump:
         import Queue
         import threading
 
-        num_worker_threads = 7
+        num_worker_threads = 1
         attemps_max = 20
 
         q_in = Queue.Queue(num_worker_threads)
@@ -288,7 +403,12 @@ class EMSL_dump:
 
         def worker():
             """get a Job from the q_in, do stuff, when finish put it in the q_out"""
+            parser_method = self.parser_map[self.format]
+            if parser_method is None:
+                raise NotImplementedError("No parser currently available for {0} data".format(self.format))
+
             while True:
+                basis_data = []
                 name, path_xml, des, elts = q_in.get()
 
                 url = "https://bse.pnl.gov:443/bse/portal/user/anon/js_peid/11535052407933/action/portlets.BasisSetAction/template/courier_content/panel/Main/"
@@ -301,10 +421,22 @@ class EMSL_dump:
 
                 attemps = 0
                 while attemps < attemps_max:
+                    m = "URL: {0} params {1} attempt {2}".format(url, params,
+                                                                 attemps)
+                    print m
                     text = self.requests.get(url, params=params).text
+
+                    #begin
+                    """import codecs
+                    bsfname = name.replace("+", "p").replace(" ", "_").replace("*", "s").replace("/", "-") + ".html"
+                    f = codecs.open(bsfname, "w", "utf-8")
+                    f.write(text)
+                    f.close()
+                    break"""
+                    #end
+                    
                     try:
-                        basis_data = self.basis_data_row_to_array(
-                            text, name, des, elts)
+                        basis_data = parser_method(text, name, des, elts)
                     except:
                         time.sleep(0.1)
                         attemps += 1
@@ -323,6 +455,7 @@ class EMSL_dump:
 
         def enqueue():
             for [name, path_xml, des, elts] in list_basis_array:
+                print "PARAMS", [name, path_xml, des, elts]
                 q_in.put([name, path_xml, des, elts])
 
             return 0
@@ -423,25 +556,26 @@ class EMSL_local:
         conn.close()
         return data
 
-    def get_basis(self, basis_name, elts=None, with_l=False):
+    def get_list_type(self, l_line):
+        p = re.compile(ur'^(\w)\s+\d+\b')
+        l = []
+        for i, line in enumerate(l_line):
+            m = re.search(p, line)
+            if m:
+                l.append([m.group(1), i])
+                try:
+                    l[-2].append(i)
+                except IndexError:
+                    pass
 
-        import re
+        l[-1].append(i + 1)
+        return l
 
-        def get_list_type(l_line):
-            l = []
-            for i, line in enumerate(l_line):
+    def process_raw_data(self, l_data_raw):
+        unpacked = [b[0] for b in l_data_raw]
+        return unpacked
 
-                m = re.search(p, line)
-                if m:
-                    l.append([m.group(1), i])
-                    try:
-                        l[-2].append(i)
-                    except IndexError:
-                        pass
-
-            l[-1].append(i + 1)
-            return l
-
+    def get_basis(self, basis_name, elts=None):
         #  __            _
         # /__  _ _|_   _|_ ._ _  ._ _     _  _. |
         # \_| (/_ |_    |  | (_) | | |   _> (_| |
@@ -462,58 +596,8 @@ class EMSL_local:
         l_data_raw = c.fetchall()
         conn.close()
 
-        # |_|  _. ._   _| |  _    || | ||
-        # | | (_| | | (_| | (/_      |_
-        #
-
-        p = re.compile(ur'^(\w)\s+\d+\b')
-
-        l_data = []
-
-        for data_raw in l_data_raw:
-
-            basis = data_raw[0].strip()
-
-            l_line_raw = basis.split("\n")
-
-            l_line = [l_line_raw[0]]
-
-            for symmetry, begin, end in get_list_type(l_line_raw):
-
-                if not(with_l) and symmetry in "L":
-
-                    body_s = []
-                    body_p = []
-
-                    for i_l in l_line_raw[begin + 1:end]:
-
-                        # one L =>  S & P
-                        a = i_l.split()
-
-                        common = "{:>3}".format(a[0])
-                        common += "{:>15.7f}".format(float(a[1]))
-
-                        tail_s = common + "{:>23.7f}".format(float(a[2]))
-                        body_s.append(tail_s)
-
-                        # Is only a whan only 3 elements, coef for p == coef for s
-                        try:
-                            tail_p = common + "{:>23.7f}".format(float(a[3]))
-                        except IndexError:
-                            tail_p = tail_s
-                        finally:
-                            body_p.append(tail_p)
-
-                    l_line += [l_line_raw[begin].replace("L", "S")]
-                    l_line += body_s
-
-                    l_line += [l_line_raw[begin].replace("L", "P")]
-                    l_line += body_p
-                else:
-                    l_line += l_line_raw[begin:end]
-
-            l_data.append("\n".join(l_line))
-
+        l_data = self.process_raw_data(l_data_raw)
+        
         return l_data
 
 if __name__ == "__main__":
