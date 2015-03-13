@@ -6,9 +6,6 @@ import sys
 import os
 import time
 
-debug = True
-
-
 def checkSQLite3(db_path):
 
     from os.path import isfile, getsize
@@ -72,13 +69,13 @@ def cond_sql_or(table_name, l_value):
 
 class EMSL_local:
 
-    def __init__(self, db_path, fmt="gamess-us"):
+    def __init__(self, db_path, fmt="gamess-us", debug=True):
         self.db_path = db_path
         self.fmt = fmt
         self.shells = "S P D F G H I K L M".split()
-        self.maximum_angular_momentum = "S"
         self.am_checkers = {"gamess-us" : self.check_gamess_us,
                             "nwchem" : self.check_nwchem}
+        self.debug = debug
 
     def check_gamess_us(self, basis_blocks):
         """GAMESS-US supports only up to G basis functions. See if any
@@ -187,10 +184,10 @@ class EMSL_local:
     def process_raw_data(self, l_data_raw):
         unpacked = [b[0] for b in l_data_raw]
         validator = self.am_checkers[self.fmt]
-        max_am, too_large = validator(unpacked)
+        self.max_am, self.am_too_large = validator(unpacked)
 
-        if too_large:
-            msg = "WARNING: Basis set data contains angular momentum up to {0}, which is too high for {1}\n".format(max_am, self.fmt)
+        if self.am_too_large and self.debug:
+            msg = "WARNING: Basis set data contains angular momentum up to {0}, which is too high for {1}\n".format(self.max_am, self.fmt)
             sys.stderr.write(msg)
             
         return unpacked
