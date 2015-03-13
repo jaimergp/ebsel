@@ -571,47 +571,11 @@ class EMSL_local:
         l[-1].append(i + 1)
         return l
 
-    def process_raw_data(self, l_data_raw, with_l):
-        # |_|  _. ._   _| |  _    || | ||
-        # | | (_| | | (_|./EMSL_api.py get_basis_data --basis=cc-pwCV5Z-RI --atom=Cd | (/_      |_
-        #
-        for data_raw in l_data_raw:
-            basis = data_raw[0].strip()
-            l_line_raw = basis.split("\n")
-            l_line = [l_line_raw[0]]
+    def process_raw_data(self, l_data_raw):
+        unpacked = [b[0] for b in l_data_raw]
+        return unpacked
 
-            for symmetry, begin, end in self.get_list_type(l_line_raw):
-                #"L" shells designate an S and P shell with the same exponent.
-                #If with_l is False, they will be expanded into S and P
-                if not(with_l) and symmetry in "L":
-                    body_s = []
-                    body_p = []
-
-                    for i_l in l_line_raw[begin + 1:end]:
-                        a = i_l.split()
-
-                        common = "{:>3}".format(a[0])
-                        common += "{:>15.7f}".format(float(a[1]))
-
-                        tail_s = common + "{:>23.7f}".format(float(a[2]))
-                        body_s.append(tail_s)
-
-                        tail_p = common + "{:>23.7f}".format(float(a[3]))
-                        body_p.append(tail_p)
-
-                    l_line += [l_line_raw[begin].replace("L", "S")]
-                    l_line += body_s
-
-                    l_line += [l_line_raw[begin].replace("L", "P")]
-                    l_line += body_p
-                else:
-                    l_line += l_line_raw[begin:end]
-
-            l_data.append("\n".join(l_line))
-            
-        return l_data
-
-    def get_basis(self, basis_name, elts=None, with_l=False):
+    def get_basis(self, basis_name, elts=None):
         #  __            _
         # /__  _ _|_   _|_ ._ _  ._ _     _  _. |
         # \_| (/_ |_    |  | (_) | | |   _> (_| |
@@ -632,7 +596,7 @@ class EMSL_local:
         l_data_raw = c.fetchall()
         conn.close()
 
-        l_data = self.process_raw_data(l_data_raw, with_l)
+        l_data = self.process_raw_data(l_data_raw)
 
         return l_data
 
