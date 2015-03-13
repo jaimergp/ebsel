@@ -39,8 +39,8 @@ import sys
 import os
 
 from src.docopt import docopt
-from src.EMSL_utility import EMSL_dump
-from src.EMSL_utility import EMSL_local, checkSQLite3
+from src.EMSL_dump import EMSL_dump
+from src.EMSL_local import EMSL_local, checkSQLite3
 
 if __name__ == '__main__':
 
