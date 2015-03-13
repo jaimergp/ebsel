@@ -46,7 +46,7 @@ Options:
   --no-contraction  Basis functions are not contracted
 
 <db_path> is the path to the SQLite3 file containing the Basis sets.
-By default is $EMSL_API_ROOT/db/Gausian_uk.db
+By default is $EMSL_API_ROOT/db/Gamess-us.db
 ```
 ##Demonstration
 
@@ -55,7 +55,7 @@ By default is $EMSL_API_ROOT/db/Gausian_uk.db
 (For a beter quality see the [Source](https://asciinema.org/api/asciicasts/15380))
 
 ##To do
-For now  we can only parse Gaussian-US basis set type file. (Look at ```./src/EMSL_utility.py#EMSL_dump.basis_data_row_to_array```)
+For now  we can only parse GAMESS-US basis set type file. (Look at ```./src/EMSL_utility.py#EMSL_dump.basis_data_row_to_array```)
 
 Feel free to fork/pull request. 
 

@@ -395,7 +395,7 @@ class EMSL_dump:
         import Queue
         import threading
 
-        num_worker_threads = 1
+        num_worker_threads = 3
         attemps_max = 20
 
         q_in = Queue.Queue(num_worker_threads)
