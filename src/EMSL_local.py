@@ -36,7 +36,7 @@ def checkSQLite3(db_path):
     # Check if the file system allows I/O on sqlite3 (lustre)
     # If not, copy on /dev/shm and remove after opening
     try:
-        EMSL_local(db_path=db_path).get_list_basis_available()
+        EMSL_local(db_path).get_list_basis_available()
     except sqlite3.OperationalError:
         print >>sys.stdrerr, "I/O Error for you file system"
         print >>sys.stderr, "Try some fixe"
@@ -49,7 +49,7 @@ def checkSQLite3(db_path):
 
     # Try again to check
     try:
-        EMSL_local(db_path=db_path).get_list_basis_available()
+        EMSL_local(db_path).get_list_basis_available()
     except:
         print >>sys.stderr, "Sorry..."
         os.system("rm -f /dev/shm/%d.db" % (os.getpid()))
@@ -72,8 +72,10 @@ def cond_sql_or(table_name, l_value):
 
 class EMSL_local:
 
-    def __init__(self, db_path=None):
+    def __init__(self, db_path, fmt="gamess-us"):
         self.db_path = db_path
+        self.fmt = fmt
+        print self.fmt
 
     def get_list_basis_available(self, elts=[]):
 
@@ -147,7 +149,7 @@ class EMSL_local:
 
 if __name__ == "__main__":
 
-    e = EMSL_local(db_path="EMSL.db")
+    e = EMSL_local("EMSL.db")
     l = e.get_list_basis_available()
     for i in l:
         print i

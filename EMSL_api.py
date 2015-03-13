@@ -6,12 +6,15 @@
 Usage:
   EMSL_api.py list_basis        [--atom=<atom_name>...]
                                 [--db_path=<db_path>]
+                                [--format=<format>]
   EMSL_api.py list_atoms  --basis=<basis_name>
                                 [--db_path=<db_path>]
+                                [--format=<format>]
   EMSL_api.py get_basis_data --basis=<basis_name>
                                 [--atom=<atom_name>...]
                                 [--db_path=<db_path>]
                                 [(--save [--path=<path>])]
+                                [--format=<format>]
   EMSL_api.py list_formats
   EMSL_api.py create_db      --db_path=<db_path>
                              --format=<format>
@@ -42,6 +45,9 @@ from src.docopt import docopt
 from src.EMSL_dump import EMSL_dump
 from src.EMSL_local import EMSL_local, checkSQLite3
 
+db_map = {"gamess-us" : "db/Gamess-us.db",
+          "nwchem" : "db/NWChem.db"}
+
 if __name__ == '__main__':
 
     arguments = docopt(__doc__, version='EMSL Api ' + version)
@@ -50,11 +56,23 @@ if __name__ == '__main__':
     #  |  ._  o _|_
     # _|_ | | |  |_
     #
+    format = arguments["--format"] or "gamess-us"
+
+    format_dict = EMSL_dump().get_list_format()
+    if format not in format_dict:
+        print "Format %s doesn't exist. Run list_formats to get the list of formats." % (format)
+        sys.exit(1)
 
     if arguments["--db_path"]:
         db_path = arguments["--db_path"]
     else:
-        db_path = os.path.dirname(__file__) + "/db/Gamess-us.db"
+        try:
+            dbfile = db_map[format]
+            db_path = os.path.dirname(__file__) + "/" + dbfile
+        except KeyError:
+            msg = "Unable to find default db for format {0}\n".format(format)
+            sys.stderr.write(msg)
+            sys.exit(1)
 
     # Check the db
     try:
@@ -71,7 +89,7 @@ if __name__ == '__main__':
     # \_____/_|___/\__| \____/ \__,_|___/_|___/
 
     if arguments["list_basis"]:
-        e = EMSL_local(db_path=db_path)
+        e = EMSL_local(db_path, format)
 
         elts = arguments["--atom"]
         l = e.get_list_basis_available(elts)
@@ -86,7 +104,7 @@ if __name__ == '__main__':
     # | |___| \__ \ |_  | |___| |  __/ | | | | |  __/ | | | |_\__ \
     # \_____/_|___/\__| \____/|_|\___|_| |_| |_|\___|_| |_|\__|___/
     if arguments["list_atoms"]:
-        e = EMSL_local(db_path=db_path)
+        e = EMSL_local(db_path, format)
 
         basis_name = arguments["--basis"]
         l = e.get_list_element_available(basis_name)
@@ -99,7 +117,7 @@ if __name__ == '__main__':
     # | |_/ / (_| \__ \ \__ \ | (_| | (_| | || (_| |
     # \____/ \__,_|___/_|___/  \__,_|\__,_|\__\__,_|
     if arguments["get_basis_data"]:
-        e = EMSL_local(db_path=db_path)
+        e = EMSL_local(db_path, format)
         basis_name = arguments["--basis"]
         elts = arguments["--atom"]
 
@@ -139,12 +157,6 @@ if __name__ == '__main__':
     #  \____/_|  \___|\__,_|\__\___|  \__,_|_.__/
     if arguments["create_db"]:
         db_path = arguments["--db_path"]
-        format = arguments["--format"]
-
-        format_dict = EMSL_dump().get_list_format()
-        if format not in format_dict:
-            print "Format %s doesn't exist. Run list_formats to get the list of formats." % (format)
-            sys.exit(1)
         contraction = not arguments["--no-contraction"]
 
         e = EMSL_dump(
