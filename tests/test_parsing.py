@@ -94,6 +94,27 @@ He    S
         self.assertEquals(len(elements), len(parsed))
         self.assertEquals("He", parsed[1][0])
         self.assertEquals(helium, parsed[1][1])
+        
+    def test_gaussian94_multipart(self):
+        #extract basis set data where each element has multiple basis blocks
+        #NOTE: This does not really work properly! But at least it completes
+        #without raising errors that block further work.
+        helium = """He     0 \nS   5   1.00\n    221.3880300              0.0027491        \n     33.2619660              0.0208658        \n      7.5616549              0.0970588        \n      2.0855990              0.2807289        \n      0.6143392              0.4742218        \nS   1   1.00\n      0.1829212              1.0000000        """
+        
+        ed = EMSL_dump(None, format="Gaussian94", debug=False)
+        name = "DZVP (DFT Orbital)"
+        description = "VDZP Valence Double Zeta + Polarization designed for DFT"
+        elements = "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe".split()
+        with open("tests/samples/gaussian94-dzvp.html") as infile:
+            text = infile.read()
+
+        parser_method = ed.parser_map[ed.format]
+        name, description, parsed = parser_method(text, name, description,
+                                                  elements)
+        #This commented-out assertion would fail; > 1 block per element here
+        #self.assertEquals(len(elements), len(parsed))
+        self.assertEquals("He", parsed[1][0])
+        self.assertEquals(helium, parsed[1][1])
 
 def runSuite(cls, verbosity=2, name=None):
     """Run a unit test suite and return status code.

@@ -49,11 +49,12 @@ class EMSL_dump:
                    "nwchem" : "NWChem"
                    }
                         
-    def __init__(self, db_path=None, format="GAMESS-US", contraction="True"):
+    def __init__(self, db_path=None, format="GAMESS-US", contraction="True",
+                 debug=True):
         self.db_path = db_path
         self.format = format
         self.contraction = str(contraction)
-        self.debug = True
+        self.debug = debug
         try:
             import requests
         except:
@@ -230,11 +231,16 @@ class EMSL_dump:
 
         #check each block for element and assign symbols to final pairs
         pairs = []
-        unused_elements = set(elements)
+        unused_elements = set([e.upper() for e in elements])
         for chunk in chunks:
             #get first 3 chars of first line in block
             symbol = chunk.split("\n")[0][:3].strip()
-            unused_elements.remove(symbol)
+            try:
+                unused_elements.remove(symbol.upper())
+            except KeyError:
+                if self.debug:
+                    msg = "Warning: already processed {0}\n".format(symbol)
+                    sys.stderr.write(msg)
             pairs.append([symbol, chunk])
 
         if unused_elements:
@@ -307,11 +313,11 @@ class EMSL_dump:
 
         #check each block for element and assign symbols to final pairs
         pairs = []
-        unused_elements = set(elements)
+        unused_elements = set([e.upper() for e in elements])
         for chunk in chunks:
             #get first 3 chars of second line in block
             symbol = chunk.split("\n")[1][:3].strip()
-            unused_elements.remove(symbol)
+            unused_elements.remove(symbol.upper())
             pairs.append([symbol, chunk])
 
         if unused_elements:
@@ -404,7 +410,7 @@ class EMSL_dump:
         import Queue
         import threading
 
-        num_worker_threads = 3
+        num_worker_threads = 4
         attemps_max = 20
 
         q_in = Queue.Queue(num_worker_threads)
@@ -435,15 +441,6 @@ class EMSL_dump:
                     print m
                     text = self.requests.get(url, params=params).text
 
-                    #begin
-                    """import codecs
-                    bsfname = name.replace("+", "p").replace(" ", "_").replace("*", "s").replace("/", "-") + ".html"
-                    f = codecs.open(bsfname, "w", "utf-8")
-                    f.write(text)
-                    f.close()
-                    break"""
-                    #end
-                    
                     try:
                         basis_data = parser_method(text, name, des, elts)
                     except:

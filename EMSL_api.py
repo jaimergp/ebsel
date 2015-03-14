@@ -46,7 +46,8 @@ from src.EMSL_dump import EMSL_dump
 from src.EMSL_local import EMSL_local, checkSQLite3
 
 db_map = {"gamess-us" : "db/Gamess-us.db",
-          "nwchem" : "db/NWChem.db"}
+          "nwchem" : "db/NWChem.db",
+          "g94" : "db/Gaussian94.db"}
 
 if __name__ == '__main__':
 

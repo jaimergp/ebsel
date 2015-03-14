@@ -74,7 +74,8 @@ class EMSL_local:
         self.fmt = fmt
         self.shells = "S P D F G H I K L M".split()
         self.am_checkers = {"gamess-us" : self.check_gamess_us,
-                            "nwchem" : self.check_nwchem}
+                            "nwchem" : self.check_nwchem,
+                            "g94" : self.check_gaussian94}
         self.debug = debug
 
     def check_gamess_us(self, basis_blocks):
@@ -137,6 +138,35 @@ class EMSL_local:
             too_large = True
         else:
             too_large = False
+
+        return (mbf, too_large)
+
+    def check_gaussian94(self, basis_blocks):
+        """Gaussian and programs using its basis set format, like Psi4,
+        may support arbitrarily high angular momentum basis functions.
+        So only report the maximum, never declare the value too large.
+
+        @param basis_blocks: blocks of basis set data
+        @type basis_blocks : list
+        @return: (max_basis_fn, too_large)
+        @rtype : tuple
+        """
+
+        shells = set(self.shells)
+        greatest = 0
+
+        for block in basis_blocks:
+            for line in block.split("\n")[1:]:
+                pieces = line.split()
+                try:
+                    b = pieces[0]
+                    index = self.shells.index(b)
+                    greatest = max(greatest, index)
+                except (IndexError, ValueError):
+                    pass
+
+        mbf = self.shells[greatest]
+        too_large = False
 
         return (mbf, too_large)
     
