@@ -77,6 +77,24 @@ He    S
         self.assertEquals("He", parsed[1][0])
         self.assertEquals(helium, parsed[1][1])
 
+    def test_gaussian94_basic(self):
+        #extract basis set data from a popular Pople basis set
+        helium = """He     0 \nS   3   1.00\n     38.4216340              0.0237660        \n      5.7780300              0.1546790        \n      1.2417740              0.4696300        \nS   1   1.00\n      0.2979640              1.0000000        """
+        
+        ed = EMSL_dump(None, format="Gaussian94")
+        name = "6-31G*"
+        description = "6-31G* Split Valence + Polarization Basis"
+        elements = "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn".split()
+        with open("tests/samples/gaussian94-6-31Gs.html") as infile:
+            text = infile.read()
+
+        parser_method = ed.parser_map[ed.format]
+        name, description, parsed = parser_method(text, name, description,
+                                                  elements)
+        self.assertEquals(len(elements), len(parsed))
+        self.assertEquals("He", parsed[1][0])
+        self.assertEquals(helium, parsed[1][1])
+
 def runSuite(cls, verbosity=2, name=None):
     """Run a unit test suite and return status code.
 
