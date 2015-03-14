@@ -73,9 +73,16 @@ class EMSL_local:
         self.db_path = db_path
         self.fmt = fmt
         self.shells = "S P D F G H I K L M".split()
+        #Per-format functions to check maximum angular momentum
         self.am_checkers = {"gamess-us" : self.check_gamess_us,
                             "nwchem" : self.check_nwchem,
                             "g94" : self.check_gaussian94}
+
+        #Per-format functions to perform extra formatting on basis set output.
+        #The lambdas just return raw data unchanged.
+        self.block_wrappers = {"gamess-us" : lambda x: x,
+                               "nwchem" : lambda x: x,
+                               "g94" : self.wrap_gaussian94}
         self.debug = debug
 
     def check_gamess_us(self, basis_blocks):
@@ -169,6 +176,26 @@ class EMSL_local:
         too_large = False
 
         return (mbf, too_large)
+
+    def wrap_gaussian94(self, blocks):
+        """Wrap up g94 blocks with **** at head and foot.
+
+        @param blocks: basis set data blocks
+        @type blocks : list
+        @return: decorated basis set data blocks
+        @rtype : list
+        """
+
+        nb = []
+        for block in blocks:
+            lines = []
+            for line in block.split("\n"):
+                if line.strip():
+                    lines.append(line)
+            nb.append("\n".join(["****"] + lines))
+
+        nb[-1] += "\n****"
+        return nb
     
     def get_list_basis_available(self, elts=[]):
 
@@ -214,13 +241,15 @@ class EMSL_local:
     def process_raw_data(self, l_data_raw):
         unpacked = [b[0] for b in l_data_raw]
         validator = self.am_checkers[self.fmt]
+        wrapper = self.block_wrappers[self.fmt]
         self.max_am, self.am_too_large = validator(unpacked)
 
         if self.am_too_large and self.debug:
             msg = "WARNING: Basis set data contains angular momentum up to {0}, which is too high for {1}\n".format(self.max_am, self.fmt)
             sys.stderr.write(msg)
-            
-        return unpacked
+
+        transformed = wrapper(unpacked)
+        return transformed
 
     def get_basis(self, basis_name, elts=None):
         #  __            _
