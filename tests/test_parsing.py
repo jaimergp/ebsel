@@ -9,6 +9,7 @@
     Test parsing of basis set data from raw EMSL BSE downloads.
 """
 
+import json
 import sys
 import unittest
 from src.EMSL_dump import EMSL_dump
@@ -20,9 +21,26 @@ class ParserTestCase(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_nwchem_cd_basis(self):
+        #test for basis set containing charge density fitting data only
+        he_cd_ref = """#BASIS SET: (4s,2p) -> [2s,2p]\nHe    S\n      3.73939300E+01         0.10996705       \n      6.98669000E+00         0.37520477       \n      1.92344500E+00         0.41847746       \nHe    S\n      6.28757000E-01         1.0000000        \nHe    P\n      3.60021686E+00         1.0000000        \nHe    P\n      1.50009035E+00         1.0000000        """
+        ed = EMSL_dump(None, format="NWChem")
+        name = "Ahlrichs Coulomb Fitting"
+        description = "DFT Coulomb Fitting"
+        elements = "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr".split()
+
+        with open("tests/samples/nwchem-ahlrichs-cf.html") as infile:
+            text = infile.read()
+
+        parser_method = ed.parser_map[ed.format]
+        name, description, parsed = parser_method(text, name, description,
+                                                  elements)
+        he_cd_data = json.loads(parsed[1][1])["cd basis"]
+        self.assertEqual(he_cd_ref, he_cd_data)
+
     def test_nwchem_ecp_only(self):
         #extract basis set data from data containing ECP section alone
-        ed = EMSL_dump(None, format="NWChem", debug=False)
+        ed = EMSL_dump(None, format="NWChem")
         name = "LANL2DZ ECP"
         description = "Halogen ECP"
         elements = "Cl Br I".split()
@@ -37,7 +55,7 @@ class ParserTestCase(unittest.TestCase):
                                                   elements)
 
         #Chlorine has ecp data only
-        cl_unpacked = ed.unpack_nwchem_basis_block(parsed[0][1])
+        cl_unpacked = json.loads(parsed[0][1])
         cl_ao_basis = cl_unpacked.get("ao basis")
         cl_ecp = cl_unpacked.get("ecp")
 
@@ -65,7 +83,7 @@ class ParserTestCase(unittest.TestCase):
                                                   elements)
 
         #Lithium only has ordinary ao basis, no ecp data
-        li_unpacked = ed.unpack_nwchem_basis_block(parsed[1][1])
+        li_unpacked = json.loads(parsed[1][1])
         li_ao_basis = li_unpacked.get("ao basis")
         li_ecp = li_unpacked.get("ecp")
         
@@ -73,7 +91,7 @@ class ParserTestCase(unittest.TestCase):
         self.assertFalse(li_ecp)
 
         #Sodium has ao basis and ecp data
-        na_unpacked = ed.unpack_nwchem_basis_block(parsed[9][1])
+        na_unpacked = json.loads(parsed[9][1])
         na_ao_basis = na_unpacked.get("ao basis")
         na_ecp = na_unpacked.get("ecp")
 
@@ -100,11 +118,11 @@ He    S
         parser_method = ed.parser_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
-        self.assertEquals(len(elements), len(parsed))
-        unpacked = ed.unpack_nwchem_basis_block(parsed[1][1])
+        self.assertEqual(len(elements), len(parsed))
+        unpacked = json.loads(parsed[1][1])
         he_ao_basis = unpacked["ao basis"]
-        self.assertEquals("He", parsed[1][0])
-        self.assertEquals(helium, he_ao_basis)
+        self.assertEqual("He", parsed[1][0])
+        self.assertEqual(helium, he_ao_basis)
 
     def test_nwchem_single(self):
         #Code did not handle a single-element basis set before
@@ -118,8 +136,8 @@ He    S
         parser_method = ed.parser_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
-        self.assertEquals(1, len(parsed))
-        self.assertEquals("Zn", parsed[0][0])
+        self.assertEqual(1, len(parsed))
+        self.assertEqual("Zn", parsed[0][0])
         
     def test_gamess_us_basic(self):
         #extract basis set data from a popular Pople basis set
@@ -135,9 +153,9 @@ He    S
         parser_method = ed.parser_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
-        self.assertEquals(len(elements), len(parsed))
-        self.assertEquals("He", parsed[1][0])
-        self.assertEquals(helium, parsed[1][1])
+        self.assertEqual(len(elements), len(parsed))
+        self.assertEqual("He", parsed[1][0])
+        self.assertEqual(helium, parsed[1][1])
 
     def test_gaussian94_basic(self):
         #extract basis set data from a popular Pople basis set
@@ -153,9 +171,9 @@ He    S
         parser_method = ed.parser_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
-        self.assertEquals(len(elements), len(parsed))
-        self.assertEquals("He", parsed[1][0])
-        self.assertEquals(helium, parsed[1][1])
+        self.assertEqual(len(elements), len(parsed))
+        self.assertEqual("He", parsed[1][0])
+        self.assertEqual(helium, parsed[1][1])
         
     def test_gaussian94_multipart(self):
         #extract basis set data where each element has multiple basis blocks
@@ -174,9 +192,9 @@ He    S
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         #This commented-out assertion would fail; > 1 block per element here
-        #self.assertEquals(len(elements), len(parsed))
-        self.assertEquals("He", parsed[1][0])
-        self.assertEquals(helium, parsed[1][1])
+        #self.assertEqual(len(elements), len(parsed))
+        self.assertEqual("He", parsed[1][0])
+        self.assertEqual(helium, parsed[1][1])
 
 def runSuite(cls, verbosity=2, name=None):
     """Run a unit test suite and return status code.

@@ -250,20 +250,22 @@ class EMSL_dump:
 
         return (name, description, pairs)
 
-    def extract_ao_basis_nwchem(self, data):
-        """Extract the ao basis data, "ordinary" basis data, from a text
-        region passed in as data.
+    def extract_basis_nwchem(self, data, name):
+        """Extract ao, cd, or xc basis data from a text region passed in as
+        data.
 
         @param data: text region containing ao basis data
         @type data : str
+        @param name: name of the basis variety, e.g. "ao basis"
+        @type name : str
         @return: per-element basis set chunks
         @rtype : list
         """
 
-        begin_markers = ["""BASIS "ao basis" PRINT"""]
+        begin_markers = ["""BASIS "{0}" PRINT""".format(name)]
         end_marker = "END"
 
-        #search for one of the possible basis set data begin markers
+        #search for the basis set data begin marker
         for begin_marker in begin_markers:
             begin = data.find(begin_marker)
             if begin != -1:
@@ -273,7 +275,7 @@ class EMSL_dump:
 
         #No ao basis data found
         if begin == -1:
-            if self.debug:
+            if self.debug and False:
                 print(data)
             return []
 
@@ -363,8 +365,6 @@ class EMSL_dump:
 
         e.g. ["Ca", "#BASIS SET..."]
 
-        N.B.: Currently ignores ECP data!
-
         @param data: raw HTML from BSE
         @type data : unicode
         @param name: basis set name
@@ -386,14 +386,16 @@ class EMSL_dump:
                     return symbol
             raise ValueError("Can't find element symbol in {0}".format(txt))
 
-        ao_chunks = self.extract_ao_basis_nwchem(data)
+        ao_chunks = self.extract_basis_nwchem(data, "ao basis")
+        cd_chunks = self.extract_basis_nwchem(data, "cd basis")
+        xc_chunks = self.extract_basis_nwchem(data, "xc basis")
         ecp_chunks = self.extract_ecp_nwchem(data)
 
-        if (not ao_chunks and not ecp_chunks):
+        if not any([ao_chunks, cd_chunks, xc_chunks, ecp_chunks]):
             raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
 
         #Tag all used elements, whether from ordinary AO basis or ECP section
-        for chunk in ao_chunks + ecp_chunks:
+        for chunk in ao_chunks + cd_chunks + xc_chunks + ecp_chunks:
             try:
                 symbol = extract_symbol(chunk)
                 unused_elements.remove(symbol.upper())
@@ -407,6 +409,26 @@ class EMSL_dump:
         #Form packed chunks, turn packed chunks into pairs
         used_elements = set()
         packed = {}
+
+        for cgroup, gname in [(ao_chunks, "ao basis"), (cd_chunks, "cd basis"),
+                              (xc_chunks, "xc basis"), (ecp_chunks, "ecp")]:
+            for chunk in cgroup:
+                symbol = extract_symbol(chunk)
+
+                #Expand entry, e.g. add ecp data for Na after it has ao basis
+                try:
+                    idx, ch = packed[symbol]
+                    ch[gname] = chunk
+                    chunk_dict = ch.copy()
+                #Create fresh entry, e.g. add Na with initial ao basis
+                except KeyError:
+                    chunk_dict = {gname : chunk}
+                    idx = len(used_elements)
+                    used_elements.add(symbol)
+
+                packed[symbol] = (idx, chunk_dict)
+
+        """
         for chunk in ao_chunks:
             symbol = extract_symbol(chunk)
             chunk_dict = {"ao basis" : chunk}
@@ -426,6 +448,7 @@ class EMSL_dump:
                 idx = len(used_elements)
                 used_elements.add(symbol)
             packed[symbol] = (idx, chunk_dict)
+        """
             
         values = packed.values()
         values.sort()
@@ -433,7 +456,10 @@ class EMSL_dump:
         #Assign (Symbol, Serialized) to final pairs
         pairs = []
         for idx, chunk in values:
-            symbol = extract_symbol(chunk.get("ao basis") or chunk.get("ecp"))
+            symbol = extract_symbol(chunk.get("ao basis")
+                                    or chunk.get("cd basis")
+                                    or chunk.get("xc basis")
+                                    or chunk.get("ecp"))
             serialized = json.dumps(chunk)
             pairs.append([symbol, serialized])
         return (name, description, pairs)
@@ -556,6 +582,7 @@ class EMSL_dump:
                     try:
                         basis_data = parser_method(text, name, des, elts)
                     except:
+                        import ipdb; ipdb.set_trace()
                         time.sleep(0.1)
                         attemps += 1
                     else:
