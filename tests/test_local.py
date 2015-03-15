@@ -32,28 +32,35 @@ class LocalTestCase(unittest.TestCase):
         el = EMSL_local("db/Gamess-us.db", fmt="gamess-us", debug=False)
         el.get_basis("pCs-4", ["Cl"])
         self.assertTrue(el.am_too_large)
-        self.assertEquals("H", el.max_am)
+        self.assertEqual("H", el.max_am)
+
+    def test_gamess_us_am_L(self):
+        #GAMESS-US angular momentum check special case for SP "L" basis
+        el = EMSL_local("db/Gamess-us.db", fmt="gamess-us", debug=False)
+        el.get_basis("6-31G", ["Cl"])
+        self.assertFalse(el.am_too_large)
+        self.assertEqual("P", el.max_am)
 
     def test_nwchem_am_pass(self):
         #NWChem angular momentum check passes for max am <= I
         el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
         el.get_basis("cc-pv6z", ["Ne"])
         self.assertFalse(el.am_too_large)
-        self.assertEquals("I", el.max_am)
+        self.assertEqual("I", el.max_am)
 
     def test_nwchem_am_fail(self):
         #NWchem angular momentum check fails for max am > I
         el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
         el.get_basis("cc-pv8z", ["Ne"])
         self.assertTrue(el.am_too_large)
-        self.assertEquals("L", el.max_am)
+        self.assertEqual("L", el.max_am)
 
     def test_gaussian94_am(self):
         #There is no upper am limit for this format! But verify max_am
         el = EMSL_local("db/Gaussian94.db", fmt="g94", debug=False)
         el.get_basis("cc-pv8z", ["Ne"])
         self.assertFalse(el.am_too_large)
-        self.assertEquals("L", el.max_am) 
+        self.assertEqual("L", el.max_am) 
 
 def runSuite(cls, verbosity=2, name=None):
     """Run a unit test suite and return status code.

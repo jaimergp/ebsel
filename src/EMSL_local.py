@@ -90,6 +90,12 @@ class EMSL_local:
         """GAMESS-US supports only up to G basis functions. See if any
         basis blocks have higher basis functions.
 
+        GAMESS has a special notation used in e.g. Pople basis sets: an
+        "L" basis indicates S and P basis functions both with the
+        same exponent. If we encounter an L function before a D function,
+        it is a special-type L function and should be treated as a composite
+        of S and P.
+
         @param basis_blocks: blocks of basis set data
         @type basis_blocks : list
         @return: (max_basis_fn, too_large)
@@ -98,12 +104,22 @@ class EMSL_local:
 
         shells = set(self.shells)
         greatest = 0
+        d_encountered = False
 
         for block in basis_blocks:
             for line in block.split("\n"):
                 pieces = line.split()
                 try:
                     b = pieces[0]
+                    if b == "D":
+                        d_encountered = True
+
+                    #If no D function has been encountered yet, an L function
+                    #should be treated as a fused "SP" function, which is P for
+                    #purposes of determining the greatest function AM
+                    #encountered so far
+                    if b == "L" and not d_encountered:
+                        b = "P"
                     index = self.shells.index(b)
                     greatest = max(greatest, index)
                 except (IndexError, ValueError):
