@@ -251,29 +251,29 @@ class EMSL_dump:
         return (name, description, pairs)
 
     def extract_basis_nwchem(self, data, name):
-        """Extract ao, cd, or xc basis data from a text region passed in as
-        data.
+        """Extract atomic orbital, charge density fitting, or exchange
+        correlation functional basis data from a text region passed in as
+        data. The charge density fitting and exchange correlation functional
+        basis set data are employed for density functional calculations.
 
-        @param data: text region containing ao basis data
+        @param data: text region containing basis set data
         @type data : str
-        @param name: name of the basis variety, e.g. "ao basis"
+        @param name: name of basis type: "ao basis", "cd basis", or "xc basis"
         @type name : str
         @return: per-element basis set chunks
         @rtype : list
         """
 
-        begin_markers = ["""BASIS "{0}" PRINT""".format(name)]
+        begin_marker = """BASIS "{0}" PRINT""".format(name)
         end_marker = "END"
 
         #search for the basis set data begin marker
-        for begin_marker in begin_markers:
-            begin = data.find(begin_marker)
-            if begin != -1:
-                break
-                
-        end = data.find(end_marker)
+        #calling "upper" on data because original data has inconsistent
+        #capitalization
+        begin = data.upper().find(begin_marker.upper())
+        end = data.upper().find(end_marker, begin)
 
-        #No ao basis data found
+        #No basis data found
         if begin == -1:
             if self.debug and False:
                 print(data)
@@ -286,7 +286,7 @@ class EMSL_dump:
 
         #group lines of data delimited by #BASIS SET... into per-element chunks
         for line in trimmed.split("\n"):
-            if line.startswith("#BASIS SET"):
+            if line.upper().startswith("#BASIS SET"):
                 if lines:
                     chunks.append(lines)
                 lines = [line]
@@ -313,8 +313,8 @@ class EMSL_dump:
 
         ecp_begin_mark = "ECP\n"
         ecp_end_mark = "END"
-        ecp_begin = data.find(ecp_begin_mark)
-        ecp_end = data.find(ecp_end_mark, ecp_begin)
+        ecp_begin = data.upper().find(ecp_begin_mark)
+        ecp_end = data.upper().find(ecp_end_mark, ecp_begin)
         ecp_region = ""
         
         if ecp_begin > -1 and ecp_end > -1:
@@ -330,7 +330,7 @@ class EMSL_dump:
         #group lines of data delimited by XX nelec YY into chunks, e.g.
         #"Zn nelec 18" begins a zinc ECP
         for line in ecp_region.split("\n"):
-            if line.find(" nelec ") > -1:
+            if line.lower().find(" nelec ") > -1:
                 if lines:
                     chunks.append(lines)
                 lines = [line]
@@ -382,8 +382,12 @@ class EMSL_dump:
         def extract_symbol(txt):
             for sline in txt.split("\n"):
                 if not sline.startswith("#"):
-                    symbol = sline[:3].strip().split()[0]
-                    return symbol
+                    try:
+                        symbol = sline[:3].strip().split()[0]
+                        return symbol
+                    except IndexError:
+                        continue
+                    
             raise ValueError("Can't find element symbol in {0}".format(txt))
 
         ao_chunks = self.extract_basis_nwchem(data, "ao basis")

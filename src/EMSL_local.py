@@ -4,6 +4,7 @@ import sqlite3
 import re
 import sys
 import os
+import json
 import time
 
 def checkSQLite3(db_path):
@@ -81,7 +82,7 @@ class EMSL_local:
         #Per-format functions to perform extra formatting on basis set output.
         #The lambdas just return raw data unchanged.
         self.block_wrappers = {"gamess-us" : lambda x: x,
-                               "nwchem" : lambda x: x,
+                               "nwchem" : self.wrap_nwchem,
                                "g94" : self.wrap_gaussian94}
         self.debug = debug
 
@@ -121,24 +122,33 @@ class EMSL_local:
         """NWChem supports only up to I basis functions. See if any
         basis blocks have higher basis functions.
 
+        N.B.: This ignores ECP data.
+
         @param basis_blocks: blocks of basis set data
         @type basis_blocks : list
         @return: (max_basis_fn, too_large)
         @rtype : tuple
         """
 
+        names = ["ao basis", "cd basis", "xc basis"]
         shells = set(self.shells)
         greatest = 0
 
-        for block in basis_blocks:
-            for line in block.split("\n")[1:]:
-                pieces = line.split()
+        for block_json in basis_blocks:
+            block_packed = json.loads(block_json)
+            for name in names:
                 try:
-                    b = pieces[1]
-                    index = self.shells.index(b)
-                    greatest = max(greatest, index)
-                except (IndexError, ValueError):
-                    pass
+                    block = block_packed[name]
+                except KeyError:
+                    continue
+                for line in block.split("\n")[1:]:
+                    pieces = line.split()
+                    try:
+                        b = pieces[1]
+                        index = self.shells.index(b)
+                        greatest = max(greatest, index)
+                    except (IndexError, ValueError):
+                        pass
 
         mbf = self.shells[greatest]
         if greatest > self.shells.index("I"):
@@ -196,6 +206,46 @@ class EMSL_local:
 
         nb[-1] += "\n****"
         return nb
+
+    def wrap_nwchem(self, blocks):
+        """Generate NWChem basis data sections that group different
+        kinds of basis set data together.
+
+        @param blocks: fused basis set data blocks
+        @type blocks : list
+        @return: basis set data sections grouped by "ao basis," "ecp," etc.
+        @rtype : list
+        """
+
+        groups = {}
+        for block_json in blocks:
+            block = json.loads(block_json)
+            for key in block:
+                try:
+                    groups[key].append(block[key])
+                except KeyError:
+                    groups[key] = [block[key]]
+
+        sections = []
+
+        #Process all basis set data except ECPs.
+        #N.B.: Always using spherical basis functions here. That's not
+        #correct, but there is currently no data to determine whether a basis
+        #set was designed for spherical or cartesian coordinates.
+        for btype in ["ao basis", "cd basis", "xc basis"]:
+            if btype in groups:
+                joined = "\n".join(groups[btype])
+                s = """basis "{0}" spherical\n{1}\nEND""".format(btype, joined)
+                sections.append(s)
+
+        #Process ECP data if present
+        ecp = groups.get("ecp")
+        if ecp:
+            joined = "\n".join(ecp)
+            s = """ECP\n{0}\nEND""".format(joined)
+            sections.append(s)
+
+        return sections
     
     def get_list_basis_available(self, elts=[]):
 
@@ -242,6 +292,7 @@ class EMSL_local:
         unpacked = [b[0] for b in l_data_raw]
         validator = self.am_checkers[self.fmt]
         wrapper = self.block_wrappers[self.fmt]
+
         self.max_am, self.am_too_large = validator(unpacked)
 
         if self.am_too_large and self.debug:
