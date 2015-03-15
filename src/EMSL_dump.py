@@ -162,7 +162,7 @@ class EMSL_dump:
 
                 des = re.sub('\s+', ' ', tup[-1])
 
-                if "-ecp" in xml_path.lower():
+                if "-ecp" in xml_path.lower() and self.format != "NWChem":
                     continue
                 d[name] = [name, xml_path, des, elts]
 
@@ -299,7 +299,7 @@ class EMSL_dump:
         chunks = ["\n".join(c) for c in chunks]
         return chunks
 
-    def extract_ecp_basis_nwchem(self, data):
+    def extract_ecp_nwchem(self, data):
         """Extract the effective core potential basis data from a text region
         passed in as data.
 
@@ -387,7 +387,7 @@ class EMSL_dump:
             raise ValueError("Can't find element symbol in {0}".format(txt))
 
         ao_chunks = self.extract_ao_basis_nwchem(data)
-        ecp_chunks = self.extract_ecp_basis_nwchem(data)
+        ecp_chunks = self.extract_ecp_nwchem(data)
 
         if (not ao_chunks and not ecp_chunks):
             raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
@@ -522,7 +522,7 @@ class EMSL_dump:
         import Queue
         import threading
 
-        num_worker_threads = 4
+        num_worker_threads = 1
         attemps_max = 20
 
         q_in = Queue.Queue(num_worker_threads)
