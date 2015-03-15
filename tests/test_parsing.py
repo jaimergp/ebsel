@@ -20,6 +20,42 @@ class ParserTestCase(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_nwchem_ecp_mixed(self):
+        #extract basis set data from data containing AO basis and ECP section
+        li_ao_ref = """#BASIS SET: (10s,4p) -> [3s,2p]\nLi    S\n    921.3000000              0.0013670        \n    138.7000000              0.0104250        \n     31.9400000              0.0498590        \n      9.3530000              0.1607010        \n      3.1580000              0.3446040        \n      1.1570000              0.4251970        \n      0.4446000              0.1694680        \nLi    S\n      0.4446000             -0.2223110        \n      0.0766600              1.1164770        \nLi    S\n      0.0286400              1.0000000        \nLi    P\n      1.4880000              0.0387700        \n      0.2667000              0.2362570        \n      0.0720100              0.8304480        \nLi    P\n      0.0237000              1.0000000        """
+
+        na_ao_ref = """#BASIS SET: (3s,3p) -> [2s,2p]\nNa    S\n      0.4972000             -0.2753574        \n      0.0560000              1.0989969        \nNa    S\n      0.0221000              1.0000000        \nNa    P\n      0.6697000             -0.0683845        \n      0.0636000              1.0140550        \nNa    P\n      0.0204000              1.0000000        """
+
+        na_ecp_ref = """Na nelec 10\nNa ul\n1    175.5502590            -10.0000000        \n2     35.0516791            -47.4902024        \n2      7.9060270            -17.2283007        \n2      2.3365719             -6.0637782        \n2      0.7799867             -0.7299393        \nNa S\n0    243.3605846              3.0000000        \n1     41.5764759             36.2847626        \n2     13.2649167             72.9304880        \n2      3.6797165             23.8401151        \n2      0.9764209              6.0123861        \nNa P\n0   1257.2650682              5.0000000        \n1    189.6248810            117.4495683        \n2     54.5247759            423.3986704        \n2     13.7449955            109.3247297        \n2      3.6813579             31.3701656        \n2      0.9461106              7.1241813        """
+        
+        ed = EMSL_dump(None, format="NWChem")
+        name = "LANL2DZ ECP"
+        description = "DZ Double Zeta Basis Set designed for an ECP"
+        elements = "H Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi U Np Pu".split()
+        
+        with open("tests/samples/nwchem-lanl2dz-ecp.html") as infile:
+            text = infile.read()
+
+        parser_method = ed.parser_map[ed.format]
+        name, description, parsed = parser_method(text, name, description,
+                                                  elements)
+
+        #Lithium only has ordinary ao basis, no ecp data
+        li_unpacked = ed.unpack_nwchem_basis_block(parsed[1][1])
+        li_ao_basis = li_unpacked.get("ao basis")
+        li_ecp = li_unpacked.get("ecp")
+        
+        self.assertEqual(li_ao_ref, li_ao_basis)
+        self.assertFalse(li_ecp)
+
+        #Sodium has ao basis and ecp data
+        na_unpacked = ed.unpack_nwchem_basis_block(parsed[9][1])
+        na_ao_basis = na_unpacked.get("ao basis")
+        na_ecp = na_unpacked.get("ecp")
+
+        self.assertEqual(na_ao_ref, na_ao_basis)
+        self.assertEqual(na_ecp_ref, na_ecp)
+
     def test_nwchem_basic(self):
         #extract basis set data from a popular Pople basis set
         helium = """#BASIS SET: (4s) -> [2s]
@@ -41,8 +77,10 @@ He    S
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         self.assertEquals(len(elements), len(parsed))
+        unpacked = ed.unpack_nwchem_basis_block(parsed[1][1])
+        he_ao_basis = unpacked["ao basis"]
         self.assertEquals("He", parsed[1][0])
-        self.assertEquals(helium, parsed[1][1])
+        self.assertEquals(helium, he_ao_basis)
 
     def test_nwchem_single(self):
         #Code did not handle a single-element basis set before

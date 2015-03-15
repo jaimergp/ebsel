@@ -4,6 +4,7 @@ import sqlite3
 import re
 import sys
 import os
+import json
 import time
 
 def install_with_pip(name):
@@ -249,6 +250,79 @@ class EMSL_dump:
 
         return (name, description, pairs)
 
+    def extract_ao_basis_nwchem(self, data):
+        """Extract the ao basis data, "ordinary" basis data, from a text
+        region passed in as data.
+
+        @param data: text region containing ao basis data
+        @type data : str
+        @return: per-element basis set chunks
+        @rtype : list
+        """
+
+        chunks = []
+        lines = []
+
+        #group lines of data delimited by #BASIS SET... into per-element chunks
+        for line in data.split("\n"):
+            if line.startswith("#BASIS SET"):
+                if lines:
+                    chunks.append(lines)
+                lines = [line]
+            else:
+                lines.append(line)
+
+        #handle trailing chunk that is not followed by another #BASIS SET...
+        if lines and (not chunks or lines != chunks[-1]):
+            chunks.append(lines)
+
+        #join lines back into solid text blocks
+        chunks = ["\n".join(c) for c in chunks]
+        return chunks
+
+    def extract_ecp_basis_nwchem(self, data):
+        """Extract the effective core potential basis data from a text region
+        passed in as data.
+
+        @param data: text region containing ECP data
+        @type data : str
+        @return: per-element effective core potential chunks
+        @rtype : list
+        """
+
+        chunks = []
+        lines = []
+
+        #group lines of data delimited by XX nelec YY into chunks, e.g.
+        #"Zn nelec 18" begins a zinc ECP
+        for line in data.split("\n"):
+            if line.find(" nelec ") > -1:
+                if lines:
+                    chunks.append(lines)
+                lines = [line]
+            else:
+                lines.append(line)
+
+        #handle trailing chunk that is not followed by another XX nelec YY..
+        if lines and (not chunks or lines != chunks[-1]):
+            chunks.append(lines)
+
+        #join lines back into solid text blocks
+        chunks = ["\n".join(c) for c in chunks]
+        return chunks
+
+    def unpack_nwchem_basis_block(self, data):
+        """Unserialize a NWChem basis data block and extract components
+
+        @param data: a JSON of basis set data, perhaps containing many types
+        @type data : str
+        @return: unpacked data
+        @rtype : dict
+        """
+
+        unpacked = json.loads(data)
+        return unpacked
+
     def parse_basis_data_nwchem(self, data, name, description, elements):
         """Parse the NWChem basis data raw html to get a nice tuple.
 
@@ -271,11 +345,16 @@ class EMSL_dump:
         @rtype : tuple
         """
 
+        def extract_symbol(txt):
+            for sline in txt.split("\n"):
+                if not sline.startswith("#"):
+                    symbol = sline[:3].strip().split()[0]
+                    return symbol
+            raise ValueError("Can't find element symbol in {0}".format(txt))
+
         d = []
 
-        begin_markers = ["""BASIS "ao basis" PRINT""",
-                         """BASIS "cd basis" PRINT""",
-                         """BASIS "xc basis" PRINT"""]
+        begin_markers = ["""BASIS "ao basis" PRINT"""]
         end_marker = "END"
 
         #search for one of the possible basis set data begin markers
@@ -292,38 +371,67 @@ class EMSL_dump:
             raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
 
         trimmed = data[begin+len(begin_marker) : end-len(end_marker)].strip()
-        chunks = []
-        lines = []
+        chunks = self.extract_ao_basis_nwchem(trimmed)
 
-        #group lines of data delimited by #BASIS SET... into per-element chunks
-        for line in trimmed.split("\n"):
-            if line.startswith("#BASIS SET"):
-                if lines:
-                    chunks.append(lines)
-                lines = [line]
-            else:
-                lines.append(line)
-
-        #handle trailing chunk that is not followed by another #BASIS SET...
-        if lines and (not chunks or lines != chunks[-1]):
-            chunks.append(lines)
-
-        #join lines back into solid text blocks
-        chunks = ["\n".join(c) for c in chunks]
-
-        #check each block for element and assign symbols to final pairs
-        pairs = []
         unused_elements = set([e.upper() for e in elements])
-        for chunk in chunks:
-            #get first 3 chars of second line in block
-            symbol = chunk.split("\n")[1][:3].strip()
-            unused_elements.remove(symbol.upper())
-            pairs.append([symbol, chunk])
+
+        #Find ECP data region, if any.
+        ecp_begin_mark = "ECP\n"
+        ecp_end_mark = "END"
+        ecp_begin = data.find(ecp_begin_mark)
+        ecp_end = data.find(ecp_end_mark, ecp_begin)
+        ecp_region = ""
+        if ecp_begin > -1 and ecp_end > -1:
+            ecp_region = data[ecp_begin + len(ecp_begin_mark) : ecp_end - len(ecp_end_mark)].strip()
+            ecp_chunks = self.extract_ecp_basis_nwchem(ecp_region)
+        else:
+            ecp_chunks = []
+
+
+        #Tag all used elements, whether from ordinary AO basis or ECP section
+        for chunk in chunks + ecp_chunks:
+            try:
+                symbol = extract_symbol(chunk)
+                unused_elements.remove(symbol.upper())
+            except KeyError:
+                pass
 
         if unused_elements:
             msg = "Warning: elements {0} left over for {1}".format(list(unused_elements), name)
             print(msg)
 
+        #Form packed chunks, turn packed chunks into pairs
+        used_elements = set()
+        packed = {}
+        for chunk in chunks:
+            symbol = extract_symbol(chunk)
+            chunk_dict = {"ao basis" : chunk}
+            idx = len(used_elements)
+            used_elements.add(symbol)
+            packed[symbol] = (idx, chunk_dict)
+
+        for chunk in ecp_chunks:
+            symbol = extract_symbol(chunk)
+            #add ECP data if existing chunk, else create fresh chunk
+            try:
+                idx, ch = packed[symbol]
+                ch["ecp"] = chunk
+                chunk_dict = ch.copy()
+            except KeyError:
+                chunk_dict["ecp"] = chunk
+                idx = len(used_elements)
+                used_elements.add(symbol)
+            packed[symbol] = (idx, chunk_dict)
+            
+        values = packed.values()
+        values.sort()
+
+        #Assign (Symbol, Serialized) to final pairs
+        pairs = []
+        for idx, chunk in values:
+            symbol = extract_symbol(chunk.get("ao basis") or chunk.get("ecp"))
+            serialized = json.dumps(chunk)
+            pairs.append([symbol, serialized])
         return (name, description, pairs)
         
     def parse_basis_data_gamess_us(self, data, name, des, elts):
