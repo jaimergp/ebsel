@@ -140,6 +140,7 @@ class EMSL_dump:
         known_elements = self.get_dict_ele().keys()
 
         d = {}
+        names = {}
 
         for line in data_raw.split('\n'):
             if "new basisSet(" in line:
@@ -155,6 +156,15 @@ class EMSL_dump:
                     continue
                 xml_path = tup[0]
                 name = tup[1]
+
+                #handle duplicate names
+                if name in names:
+                    suffix = "-number{0}".format(len(names[name]) + 1)
+                    new_name = name + suffix
+                    names[name].append(new_name)
+                    name = new_name
+                else:
+                    names[name] = [name]
 
                 raw_elts = re.sub('[["\ \]]', '', tup[3]).split(',')
                 #filter out weird elements from exotic basis sets, e.g. Uuu

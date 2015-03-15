@@ -7,7 +7,7 @@ import os
 import json
 import time
 
-def checkSQLite3(db_path):
+def checkSQLite3(db_path, fmt):
 
     from os.path import isfile, getsize
 
@@ -34,7 +34,7 @@ def checkSQLite3(db_path):
     # Check if the file system allows I/O on sqlite3 (lustre)
     # If not, copy on /dev/shm and remove after opening
     try:
-        EMSL_local(db_path).get_list_basis_available()
+        EMSL_local(db_path, fmt).get_list_basis_available()
     except sqlite3.OperationalError:
         print >>sys.stdrerr, "I/O Error for you file system"
         print >>sys.stderr, "Try some fixe"
@@ -47,7 +47,7 @@ def checkSQLite3(db_path):
 
     # Try again to check
     try:
-        EMSL_local(db_path).get_list_basis_available()
+        EMSL_local(db_path, fmt).get_list_basis_available()
     except:
         print >>sys.stderr, "Sorry..."
         os.system("rm -f /dev/shm/%d.db" % (os.getpid()))

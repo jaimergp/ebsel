@@ -78,7 +78,7 @@ if __name__ == '__main__':
     # Check the db
     try:
         if not(arguments['create_db']):
-            db_path, db_path_changed = checkSQLite3(db_path)
+            db_path, db_path_changed = checkSQLite3(db_path, format)
     except:
         sys.exit(1)
 
