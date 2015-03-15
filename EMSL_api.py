@@ -95,8 +95,10 @@ if __name__ == '__main__':
         elts = arguments["--atom"]
         l = e.get_list_basis_available(elts)
 
-        for name, des, n in l:
-            print name, "(", n, ")", "|", des
+        ct = 1
+        for name, des in l:
+            print "{} - '{}' || {:<50}".format(ct, name, des)
+            ct += 1
 
     #  _     _     _     _____ _                           _
     # | |   (_)   | |   |  ___| |                         | |

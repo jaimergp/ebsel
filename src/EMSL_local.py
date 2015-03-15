@@ -247,30 +247,82 @@ class EMSL_local:
 
         return sections
     
-    def get_list_basis_available(self, elts=[]):
+    def get_list_basis_available(self, elts=[], basis=[]):
+        """
+        return all the basis name who contant all the elts
+        """
+        
+        # If not elts just get the distinct name
+        # Else: 1) fetch for geting all the run_id whos satisfy the condition
+        #       2) Get name, description
+        #       3) Parse it
+
+        # ~#~#~#~ #
+        # I n i t #
+        # ~#~#~#~ #
 
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
-        if not elts:
+        # ~#~#~#~#~#~ #
+        # F i l t e r #
+        # ~#~#~#~#~#~ #
 
-            c.execute("""SELECT DISTINCT name,description, LENGTH(data)- LENGTH(REPLACE(data, X'0A', ''))
-                         FROM output_tab""")
-            data = c.fetchall()
+        if basis:
+            cmd_filter_basis = " ".join(cond_sql_or("name", basis, glob=True))
+        else:
+            cmd_filter_basis = "(1)"
+
+        # Not Ets
+        if not elts:
+            cmd = """SELECT DISTINCT name, description
+                     FROM basis_tab
+                     WHERE {0}"""
+
+            cmd = cmd.format(cmd_filter_basis)
 
         else:
-            cmd = ["""SELECT name,description, LENGTH(data)- LENGTH(REPLACE(data, X'0A', ''))
-                      FROM output_tab WHERE elt=?"""] * len(elts)
-            cmd = " INTERSECT ".join(cmd) + ";"
 
+            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
+            # G e t t i n g _ B a s i s I d #
+            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
+
+            str_ = """SELECT DISTINCT basis_id
+                      FROM output_tab
+                      WHERE elt=? AND {0}""".format(cmd_filter_basis)
+
+            cmd = " INTERSECT ".join([str_] * len(elts)) + ";"
             c.execute(cmd, elts)
-            data = c.fetchall()
 
-        data = [i[:] for i in data]
+            l_basis_id = [i[0] for i in c.fetchall()]
 
+            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
+            # C r e a t e _ t h e _ c m d #
+            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
+
+            cmd_filter_basis = " ".join(cond_sql_or("basis_id", l_basis_id))
+            cmd_filter_ele = " ".join(cond_sql_or("elt", elts))
+
+            column_to_fech = "name, description"
+
+            filter_where = " ({}) AND ({})".format(cmd_filter_ele, cmd_filter_basis)
+
+            cmd = """SELECT DISTINCT {0}
+                     FROM output_tab
+                     WHERE {1}
+                     ORDER BY name""".format(column_to_fech, filter_where)
+        # ~#~#~#~#~ #
+        # F e t c h #
+        # ~#~#~#~#~ #
+
+        c.execute(cmd)
+        info = c.fetchall()
         conn.close()
 
-        return data
+        final = [i[:] for i in info]
+
+        return final
+
 
     def get_list_element_available(self, basis_name):
 
