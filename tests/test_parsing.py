@@ -20,6 +20,30 @@ class ParserTestCase(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_nwchem_ecp_only(self):
+        #extract basis set data from data containing ECP section alone
+        ed = EMSL_dump(None, format="NWChem", debug=False)
+        name = "LANL2DZ ECP"
+        description = "Halogen ECP"
+        elements = "Cl Br I".split()
+
+        cl_ecp_ref = """Cl nelec 10\nCl ul\n1     94.8130000            -10.0000000        \n2    165.6440000             66.2729170        \n2     30.8317000            -28.9685950        \n2     10.5841000            -12.8663370        \n2      3.7704000             -1.7102170        \nCl S\n0    128.8391000              3.0000000        \n1    120.3786000             12.8528510        \n2     63.5622000            275.6723980        \n2     18.0695000            115.6777120        \n2      3.8142000             35.0606090        \nCl P\n0    216.5263000              5.0000000        \n1     46.5723000              7.4794860        \n2    147.4685000            613.0320000        \n2     48.9869000            280.8006850        \n2     13.2096000            107.8788240        \n2      3.1831000             15.3439560        """
+        
+        with open("tests/samples/nwchem-lanl2dz-ecponly-small.html") as infile:
+            text = infile.read()
+
+        parser_method = ed.parser_map[ed.format]
+        name, description, parsed = parser_method(text, name, description,
+                                                  elements)
+
+        #Chlorine has ecp data only
+        cl_unpacked = ed.unpack_nwchem_basis_block(parsed[0][1])
+        cl_ao_basis = cl_unpacked.get("ao basis")
+        cl_ecp = cl_unpacked.get("ecp")
+
+        self.assertFalse(cl_ao_basis)
+        self.assertEqual(cl_ecp_ref, cl_ecp)
+
     def test_nwchem_ecp_mixed(self):
         #extract basis set data from data containing AO basis and ECP section
         li_ao_ref = """#BASIS SET: (10s,4p) -> [3s,2p]\nLi    S\n    921.3000000              0.0013670        \n    138.7000000              0.0104250        \n     31.9400000              0.0498590        \n      9.3530000              0.1607010        \n      3.1580000              0.3446040        \n      1.1570000              0.4251970        \n      0.4446000              0.1694680        \nLi    S\n      0.4446000             -0.2223110        \n      0.0766600              1.1164770        \nLi    S\n      0.0286400              1.0000000        \nLi    P\n      1.4880000              0.0387700        \n      0.2667000              0.2362570        \n      0.0720100              0.8304480        \nLi    P\n      0.0237000              1.0000000        """

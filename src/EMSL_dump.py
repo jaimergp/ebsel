@@ -260,11 +260,30 @@ class EMSL_dump:
         @rtype : list
         """
 
+        begin_markers = ["""BASIS "ao basis" PRINT"""]
+        end_marker = "END"
+
+        #search for one of the possible basis set data begin markers
+        for begin_marker in begin_markers:
+            begin = data.find(begin_marker)
+            if begin != -1:
+                break
+                
+        end = data.find(end_marker)
+
+        #No ao basis data found
+        if begin == -1:
+            if self.debug:
+                print(data)
+            return []
+
+        trimmed = data[begin+len(begin_marker) : end-len(end_marker)].strip()
+
         chunks = []
         lines = []
 
         #group lines of data delimited by #BASIS SET... into per-element chunks
-        for line in data.split("\n"):
+        for line in trimmed.split("\n"):
             if line.startswith("#BASIS SET"):
                 if lines:
                     chunks.append(lines)
@@ -290,12 +309,25 @@ class EMSL_dump:
         @rtype : list
         """
 
+        ecp_begin_mark = "ECP\n"
+        ecp_end_mark = "END"
+        ecp_begin = data.find(ecp_begin_mark)
+        ecp_end = data.find(ecp_end_mark, ecp_begin)
+        ecp_region = ""
+        
+        if ecp_begin > -1 and ecp_end > -1:
+            ecp_region = data[ecp_begin + len(ecp_begin_mark) : ecp_end - len(ecp_end_mark)].strip()
+
+        #No ECP data, so return empty list
+        else:
+            return []
+
         chunks = []
         lines = []
 
         #group lines of data delimited by XX nelec YY into chunks, e.g.
         #"Zn nelec 18" begins a zinc ECP
-        for line in data.split("\n"):
+        for line in ecp_region.split("\n"):
             if line.find(" nelec ") > -1:
                 if lines:
                     chunks.append(lines)
@@ -345,6 +377,8 @@ class EMSL_dump:
         @rtype : tuple
         """
 
+        unused_elements = set([e.upper() for e in elements])
+
         def extract_symbol(txt):
             for sline in txt.split("\n"):
                 if not sline.startswith("#"):
@@ -352,44 +386,14 @@ class EMSL_dump:
                     return symbol
             raise ValueError("Can't find element symbol in {0}".format(txt))
 
-        d = []
+        ao_chunks = self.extract_ao_basis_nwchem(data)
+        ecp_chunks = self.extract_ecp_basis_nwchem(data)
 
-        begin_markers = ["""BASIS "ao basis" PRINT"""]
-        end_marker = "END"
-
-        #search for one of the possible basis set data begin markers
-        for begin_marker in begin_markers:
-            begin = data.find(begin_marker)
-            if begin != -1:
-                break
-                
-        end = data.find(end_marker)
-        
-        if begin == -1:
-            if self.debug:
-                print(data)
+        if (not ao_chunks and not ecp_chunks):
             raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
 
-        trimmed = data[begin+len(begin_marker) : end-len(end_marker)].strip()
-        chunks = self.extract_ao_basis_nwchem(trimmed)
-
-        unused_elements = set([e.upper() for e in elements])
-
-        #Find ECP data region, if any.
-        ecp_begin_mark = "ECP\n"
-        ecp_end_mark = "END"
-        ecp_begin = data.find(ecp_begin_mark)
-        ecp_end = data.find(ecp_end_mark, ecp_begin)
-        ecp_region = ""
-        if ecp_begin > -1 and ecp_end > -1:
-            ecp_region = data[ecp_begin + len(ecp_begin_mark) : ecp_end - len(ecp_end_mark)].strip()
-            ecp_chunks = self.extract_ecp_basis_nwchem(ecp_region)
-        else:
-            ecp_chunks = []
-
-
         #Tag all used elements, whether from ordinary AO basis or ECP section
-        for chunk in chunks + ecp_chunks:
+        for chunk in ao_chunks + ecp_chunks:
             try:
                 symbol = extract_symbol(chunk)
                 unused_elements.remove(symbol.upper())
@@ -403,7 +407,7 @@ class EMSL_dump:
         #Form packed chunks, turn packed chunks into pairs
         used_elements = set()
         packed = {}
-        for chunk in chunks:
+        for chunk in ao_chunks:
             symbol = extract_symbol(chunk)
             chunk_dict = {"ao basis" : chunk}
             idx = len(used_elements)
@@ -418,7 +422,7 @@ class EMSL_dump:
                 ch["ecp"] = chunk
                 chunk_dict = ch.copy()
             except KeyError:
-                chunk_dict["ecp"] = chunk
+                chunk_dict = {"ecp" : chunk}
                 idx = len(used_elements)
                 used_elements.add(symbol)
             packed[symbol] = (idx, chunk_dict)
