@@ -1,0 +1,44 @@
+echo
+
+start dft_feco5
+
+# test of DFT with Fe(CO)5 using cd basis and xc basis
+
+# There are 2 million integrals 
+
+geometry units au
+  symmetry group d3h
+
+  fe 0.0 0.0 0.0 
+
+  c 0.0 0.0 3.414358 
+  o 0.0 0.0 5.591323 
+
+  c 2.4417087 2.4417087 0.0 
+  o 3.9810552 3.9810552 0.0 
+end
+
+basis "ao basis" 
+  o library "DZVP (DFT Orbital)"
+  c library "DZVP (DFT Orbital)"
+ fe library "DZVP (DFT Orbital)"
+end
+
+basis "cd basis" 
+  o library "DGauss A1 DFT Coulomb Fitting"
+  c library "DGauss A1 DFT Coulomb Fitting"
+ fe library "DGauss A1 DFT Coulomb Fitting"
+end
+
+basis "xc basis" 
+  o library "DGauss A1 DFT Exchange Fitting"
+  c library "DGauss A1 DFT Exchange Fitting"
+ fe library "DGauss A1 DFT Exchange Fitting"
+end
+
+dft
+  xc acm
+end
+
+task dft energy
+
