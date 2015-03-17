@@ -442,28 +442,6 @@ class EMSL_dump:
 
                 packed[symbol] = (idx, chunk_dict)
 
-        """
-        for chunk in ao_chunks:
-            symbol = extract_symbol(chunk)
-            chunk_dict = {"ao basis" : chunk}
-            idx = len(used_elements)
-            used_elements.add(symbol)
-            packed[symbol] = (idx, chunk_dict)
-
-        for chunk in ecp_chunks:
-            symbol = extract_symbol(chunk)
-            #add ECP data if existing chunk, else create fresh chunk
-            try:
-                idx, ch = packed[symbol]
-                ch["ecp"] = chunk
-                chunk_dict = ch.copy()
-            except KeyError:
-                chunk_dict = {"ecp" : chunk}
-                idx = len(used_elements)
-                used_elements.add(symbol)
-            packed[symbol] = (idx, chunk_dict)
-        """
-            
         values = packed.values()
         values.sort()
 
