@@ -408,7 +408,7 @@ class EMSL_dump:
         if not any([ao_chunks, cd_chunks, xc_chunks, ecp_chunks]):
             raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
 
-        #Tag all used elements, whether from ordinary AO basis or ECP section
+        #Tag all used elements, whether from ordinary basis or ECP section
         for chunk in ao_chunks + cd_chunks + xc_chunks + ecp_chunks:
             try:
                 symbol = extract_symbol(chunk)

@@ -60,7 +60,26 @@ class LocalTestCase(unittest.TestCase):
         el = EMSL_local("db/Gaussian94.db", fmt="g94", debug=False)
         el.get_basis("cc-pv8z", ["Ne"])
         self.assertFalse(el.am_too_large)
-        self.assertEqual("L", el.max_am) 
+        self.assertEqual("L", el.max_am)
+
+    def test_cartesian_or_spherical(self):
+        #most basis sets treated as using spherical (pure) functions, while
+        #a few older ones are treated as using cartesians
+        expected_cartesian = [u'3-21G', u'4-31G', u'6-31G', u'6-31G*',
+                              u'6-31G**'] 
+        el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
+        assigned = {}
+        names = el.get_list_basis_available()
+        names.sort()
+        for name, description in names:
+            fn_type = el.spherical_or_cartesian(name)
+            try:
+                assigned[fn_type].append(name)
+            except KeyError:
+                assigned[fn_type] = [name]
+
+        self.assertEqual(expected_cartesian, assigned["cartesian"])
+ 
 
 def runSuite(cls, verbosity=2, name=None):
     """Run a unit test suite and return status code.

@@ -80,8 +80,8 @@ class EMSL_local:
                             "g94" : self.check_gaussian94}
 
         #Per-format functions to perform extra formatting on basis set output.
-        #The lambdas just return raw data unchanged.
-        self.block_wrappers = {"gamess-us" : lambda x: x,
+        #The lambda just returns raw data unchanged.
+        self.block_wrappers = {"gamess-us" : lambda x, y: x,
                                "nwchem" : self.wrap_nwchem,
                                "g94" : self.wrap_gaussian94}
         self.debug = debug
@@ -203,11 +203,14 @@ class EMSL_local:
 
         return (mbf, too_large)
 
-    def wrap_gaussian94(self, blocks):
+    def wrap_gaussian94(self, blocks, basis_name):
         """Wrap up g94 blocks with **** at head and foot.
+
+        N.B.: basis_name is currently ignored
 
         @param blocks: basis set data blocks
         @type blocks : list
+        @param basis_name: name of the basis set
         @return: decorated basis set data blocks
         @rtype : list
         """
@@ -223,16 +226,52 @@ class EMSL_local:
         nb[-1] += "\n****"
         return nb
 
-    def wrap_nwchem(self, blocks):
+    def spherical_or_cartesian(self, basis_name):
+        """Indicate whether a basis set should be treated as using cartesian
+        or pure (spherical) basis functions. A cartesian basis set uses
+        6 d functions while a spherical basis set uses 5 d functions. There
+        is no way to determine whether basis sets were intended for cartesian
+        or spherical basis functions, or a mixture of them, other than going
+        back to the original literature. One can force spherical or cartesian
+        behavior for any basis set in most programs, but the choice will affect
+        energies and possibly electronic convergence, due to linear
+        dependencies in the basis set.
+
+        This function simply sees if the basis set name matches one of the
+        common basis sets that have cartesian functions, or not. The available
+        basis sets in the EMSL Basis Set Exchange have not been thoroughly
+        reviewed.
+
+        http://www.gaussian.com/g_tech/g_ur/m_basis_sets.htm
+
+        @param basis_name: name of the basis set to test
+        @type basis_name : str
+        @return: "cartesian" or "spherical"
+        @rtype : str
+        """
+
+        cartesians = ["3-21G", "6-21G", "4-31G", "6-31G", "6-31G*", "6-31G**"]
+
+        if basis_name in cartesians:
+            v = "cartesian"
+        else:
+            v = "spherical"
+
+        return v
+
+    def wrap_nwchem(self, blocks, basis_name):
         """Generate NWChem basis data sections that group different
         kinds of basis set data together.
 
         @param blocks: fused basis set data blocks
         @type blocks : list
+        @param basis_name: name of the basis set
+        @type basis_name : str
         @return: basis set data sections grouped by "ao basis," "ecp," etc.
         @rtype : list
         """
 
+        fn_type = self.spherical_or_cartesian(basis_name)
         groups = {}
         for block_json in blocks:
             block = json.loads(block_json)
@@ -245,13 +284,11 @@ class EMSL_local:
         sections = []
 
         #Process all basis set data except ECPs.
-        #N.B.: Always using spherical basis functions here. That's not
-        #correct, but there is currently no data to determine whether a basis
-        #set was designed for spherical or cartesian coordinates.
         for btype in ["ao basis", "cd basis", "xc basis"]:
             if btype in groups:
                 joined = "\n".join(groups[btype])
-                s = """basis "{0}" spherical\n{1}\nEND""".format(btype, joined)
+                s = """basis "{0}" {1}\n{2}\nEND""".format(btype, fn_type,
+                                                           joined)
                 sections.append(s)
 
         #Process ECP data if present
@@ -356,7 +393,7 @@ class EMSL_local:
         conn.close()
         return data
 
-    def process_raw_data(self, l_data_raw):
+    def process_raw_data(self, l_data_raw, basis_name):
         unpacked = [b[0] for b in l_data_raw]
         validator = self.am_checkers[self.fmt]
         wrapper = self.block_wrappers[self.fmt]
@@ -367,7 +404,7 @@ class EMSL_local:
             msg = "WARNING: Basis set data contains angular momentum up to {0}, which is too high for {1}\n".format(self.max_am, self.fmt)
             sys.stderr.write(msg)
 
-        transformed = wrapper(unpacked)
+        transformed = wrapper(unpacked, basis_name)
         return transformed
 
     def get_basis(self, basis_name, elts=None):
@@ -391,7 +428,7 @@ class EMSL_local:
         l_data_raw = c.fetchall()
         conn.close()
 
-        l_data = self.process_raw_data(l_data_raw)
+        l_data = self.process_raw_data(l_data_raw, basis_name)
         
         return l_data
 
