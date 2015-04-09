@@ -243,9 +243,11 @@ class EMSL_local:
         This function simply sees if the basis set name matches one of the
         common basis sets that have cartesian functions, or not. The available
         basis sets in the EMSL Basis Set Exchange have not been thoroughly
-        reviewed.
+        reviewed. Some have been cribbed from annotations in the Psi4 basis
+        library.
 
         http://www.gaussian.com/g_tech/g_ur/m_basis_sets.htm
+        
 
         @param basis_name: name of the basis set to test
         @type basis_name : str
@@ -253,7 +255,8 @@ class EMSL_local:
         @rtype : str
         """
 
-        cartesians = ["3-21G", "6-21G", "4-31G", "6-31G", "6-31G*", "6-31G**"]
+        cartesians = ["3-21G", "6-21G", "4-31G", "6-31G", "6-31G*", "6-31G**",
+                      "DZ (Dunning)", "DZP (Dunning)"]
 
         if basis_name in cartesians:
             v = "cartesian"

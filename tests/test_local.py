@@ -65,8 +65,8 @@ class LocalTestCase(unittest.TestCase):
     def test_cartesian_or_spherical(self):
         #most basis sets treated as using spherical (pure) functions, while
         #a few older ones are treated as using cartesians
-        expected_cartesian = [u'3-21G', u'4-31G', u'6-31G', u'6-31G*',
-                              u'6-31G**'] 
+        expected_cartesian = ["3-21G", "4-31G", "6-31G", "6-31G*",
+                              "6-31G**", "DZ (Dunning)", "DZP (Dunning)"] 
         el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
         assigned = {}
         names = el.get_list_basis_available()
