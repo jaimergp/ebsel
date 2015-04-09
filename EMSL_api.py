@@ -49,6 +49,21 @@ db_map = {"gamess-us" : "db/Gamess-us.db",
           "nwchem" : "db/NWChem.db",
           "g94" : "db/Gaussian94.db"}
 
+def get_EMSL_local(db_path=None, fmt=None):
+    if db_path is None:
+        try:
+            dbfile = db_map[fmt]
+            db_path = os.path.dirname(__file__) + "/" + dbfile
+        except KeyError:
+            msg = "Unable to find default db for format {0}\n".format(fmt)
+            sys.stderr.write(msg)
+            sys.exit(1)
+
+    db_path, db_path_changed = checkSQLite3(db_path, format)
+
+    e = EMSL_local(db_path, fmt)
+    return e
+
 if __name__ == '__main__':
 
     arguments = docopt(__doc__, version='EMSL Api ' + version)
@@ -67,21 +82,8 @@ if __name__ == '__main__':
     if arguments["--db_path"]:
         db_path = arguments["--db_path"]
     else:
-        try:
-            dbfile = db_map[format]
-            db_path = os.path.dirname(__file__) + "/" + dbfile
-        except KeyError:
-            msg = "Unable to find default db for format {0}\n".format(format)
-            sys.stderr.write(msg)
-            sys.exit(1)
-
-    # Check the db
-    try:
-        if not(arguments['create_db']):
-            db_path, db_path_changed = checkSQLite3(db_path, format)
-    except:
-        sys.exit(1)
-
+        db_path = None
+    
     #  _     _     _    ______           _
     # | |   (_)   | |   | ___ \         (_)
     # | |    _ ___| |_  | |_/ / __ _ ___ _ ___
@@ -90,7 +92,7 @@ if __name__ == '__main__':
     # \_____/_|___/\__| \____/ \__,_|___/_|___/
 
     if arguments["list_basis"]:
-        e = EMSL_local(db_path, format)
+        e = get_EMSL_local(db_path, format)
 
         elts = arguments["--atom"]
         l = e.get_list_basis_available(elts)
@@ -107,7 +109,7 @@ if __name__ == '__main__':
     # | |___| \__ \ |_  | |___| |  __/ | | | | |  __/ | | | |_\__ \
     # \_____/_|___/\__| \____/|_|\___|_| |_| |_|\___|_| |_|\__|___/
     if arguments["list_atoms"]:
-        e = EMSL_local(db_path, format)
+        e = get_EMSL_local(db_path, format)
 
         basis_name = arguments["--basis"]
         l = e.get_list_element_available(basis_name)
@@ -120,7 +122,7 @@ if __name__ == '__main__':
     # | |_/ / (_| \__ \ \__ \ | (_| | (_| | || (_| |
     # \____/ \__,_|___/_|___/  \__,_|\__,_|\__\__,_|
     if arguments["get_basis_data"]:
-        e = EMSL_local(db_path, format)
+        e = get_EMSL_local(db_path, format)
         basis_name = arguments["--basis"]
         elts = arguments["--atom"]
 
@@ -167,12 +169,3 @@ if __name__ == '__main__':
             format=format_dict[format],
             contraction=contraction)
         e.new_db()
-
-    #  _
-    # /  |  _   _. ._  o ._   _
-    # \_ | (/_ (_| | | | | | (_|
-    #                         _|
-
-    # Clean up on exit
-    if not(arguments['create_db']) and db_path_changed:
-        os.system("rm -f /dev/shm/%d.db" % (os.getpid()))
