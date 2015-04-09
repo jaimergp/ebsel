@@ -87,8 +87,11 @@ class EMSL_local:
         self.debug = debug
 
     def check_gamess_us(self, basis_blocks):
-        """GAMESS-US supports only up to G basis functions. See if any
+        """GAMESS-US supports only up to I basis functions. See if any
         basis blocks have higher basis functions.
+
+        N.B.: Prior to January 2013, GAMESS-US supported only up to G basis
+        functions.
 
         GAMESS has a special notation used in e.g. Pople basis sets: an
         "L" basis indicates S and P basis functions both with the
@@ -126,7 +129,7 @@ class EMSL_local:
                     pass
 
         mbf = self.shells[greatest]
-        if greatest > self.shells.index("G"):
+        if greatest > self.shells.index("I"):
             too_large = True
         else:
             too_large = False

@@ -28,11 +28,11 @@ class LocalTestCase(unittest.TestCase):
         self.assertEquals("G", el.max_am)
 
     def test_gamess_us_am_fail(self):
-        #GAMESS-US angular momentum check fails for max am > G
+        #GAMESS-US angular momentum check fails for max am <= I
         el = EMSL_local("db/Gamess-us.db", fmt="gamess-us", debug=False)
-        el.get_basis("pCs-4", ["Cl"])
-        self.assertTrue(el.am_too_large)
-        self.assertEqual("H", el.max_am)
+        el.get_basis("cc-pv6z", ["Cl"])
+        self.assertFalse(el.am_too_large)
+        self.assertEqual("I", el.max_am)
 
     def test_gamess_us_am_L(self):
         #GAMESS-US angular momentum check special case for SP "L" basis
