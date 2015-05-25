@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding:utf-8 mode:python; tab-width:4; indent-tabs-mode:nil; py-indent-offset:4 -*-
+##
+
 
 """EMSL Api.
 
@@ -36,7 +38,7 @@ Example of use:
     ./EMSL_api.py get_basis_data --basis 3-21++G*
 """
 
-version = "0.2.2"
+version = "0.2.3"
 
 import sys
 import os
