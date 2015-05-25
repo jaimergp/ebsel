@@ -78,7 +78,7 @@ class EMSL_dump:
 
     def get_dict_ele(self):
         """A dict of element"""
-        elt_path = os.path.dirname(sys.argv[0]) + "/src/elts_abrev.dat"
+        elt_path = os.path.dirname(__file__) + "/src/elts_abrev.dat"
         if not os.path.exists(elt_path):
             elt_path = "src/elts_abrev.dat"
 
