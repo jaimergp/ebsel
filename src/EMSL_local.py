@@ -70,7 +70,7 @@ def cond_sql_or(table_name, l_value):
     return l
 
 
-class EMSL_local:
+class EMSL_local(object):
 
     def __init__(self, db_path, fmt="gamess-us", debug=True):
         self.db_path = db_path

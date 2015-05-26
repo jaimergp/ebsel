@@ -32,7 +32,7 @@ def install_with_pip(name):
             sys.exit(1)
 
 
-class EMSL_dump:
+class EMSL_dump(object):
     
     format_dict = {"g94": "Gaussian94",
                    "gamess-us": "GAMESS-US",
