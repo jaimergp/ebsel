@@ -27,6 +27,52 @@ class BasisSetEntry(object):
             self.spherical_or_cartesian = basis_dict["spherical_or_cartesian"]
             self.functions = basis_dict["functions"]
 
+        def reformat_functions(self, function_list):
+            """These are equivalent:
+
+            c1 e1 e2
+            c2 e1 e2
+
+            c1 e1
+            c2 e1
+            c1 e2
+            c2 e2
+
+            Reformat nested function lists of the first layout to produce
+            the second layout.
+
+            e.g. take each
+            ('S', [[192.1714, 0.5289 0.2731],
+                   [86.1207, 0.1208, 0.0303]])
+
+            and make it
+            ('S', [[192.1714, 0.5289],
+                   [86.12, 0.1208],
+                   [192.1714, 0.2731],
+                   [86.1207, 0.0303]])
+
+            :param function_list: functions to reformat
+            :type function_list : list
+            :return: restructured function list
+            :rtype : list
+            """
+
+            ffl = []
+
+            for shell, lists in function_list:
+                #lists = lists[:5]
+                n_columns = len(lists[0]) - 1
+                columns = [list() for c in range(n_columns)]
+
+                for fn in lists:
+                    for j, e in enumerate(fn[1:]):
+                        entry = [fn[0], e]
+                        columns[j].append(entry)
+
+                ffl.append((shell, columns))
+
+            return ffl
+
         @property
         def functions_per_shell(self):
             """Return the number of basis functions by shell name.

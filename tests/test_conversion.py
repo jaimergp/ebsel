@@ -42,6 +42,36 @@ class ConversionTestCase(unittest.TestCase):
         parsed = self.parse_nwchem("6-31G*", "Cl")
         self.assertEqual(reference, parsed.functions_per_shell)
 
+    def test_reformat_functions(self):
+        #translate from "wide" form to "tall" form
+        wide = ('P',
+                [[663.3, 0.00240448, -0.000652145],
+                 [156.8, 0.0192148, -0.00519445],
+                 [49.98, 0.0885097, -0.0246938],
+                 [18.42, 0.25602, -0.0728167],
+                 [7.24, 0.436927, -0.13403],
+                 [2.922, 0.350334, -0.0947742],
+                 [0.3818, -0.00458423, 0.564667]])
+        tall =  ('P',
+                 [[[663.3, 0.00240448],
+                   [156.8, 0.0192148],
+                   [49.98, 0.0885097],
+                   [18.42, 0.25602],
+                   [7.24, 0.436927],
+                   [2.922, 0.350334],
+                   [0.3818, -0.00458423]],
+                  [[663.3, -0.000652145],
+                   [156.8, -0.00519445],
+                   [49.98, -0.0246938],
+                   [18.42, -0.0728167],
+                   [7.24, -0.13403],
+                   [2.922, -0.0947742],
+                   [0.3818, 0.564667]]])
+        parsed = self.parse_nwchem("cc-pVTZ", "Cl")
+        self.assertEqual(wide, parsed.functions[3])
+        converted = parsed.reformat_functions(parsed.functions)
+        self.assertEqual(tall, converted[3])
+
 
     def xtest_find_limits(self):
         c = conversion.Converter()
