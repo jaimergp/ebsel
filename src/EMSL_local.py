@@ -3,26 +3,21 @@
 ##
 
 import sqlite3
-import re
 import sys
 import os
 import json
-import time
 
 def checkSQLite3(db_path, fmt):
-
-    from os.path import isfile, getsize
-
     # Check if db file is readable
     if not os.access(db_path, os.R_OK):
         print >>sys.stderr, "Db file %s is not readable" % (db_path)
         raise IOError
 
-    if not isfile(db_path):
+    if not os.path.isfile(db_path):
         print >>sys.stderr, "Db file %s is not... a file!" % (db_path)
         raise IOError
 
-    if getsize(db_path) < 100:  # SQLite database file header is 100 bytes
+    if os.path.getsize(db_path) < 100:  # SQLite database file header is 100 bytes
         print >>sys.stderr, "Db file %s is not a SQLite file!" % (db_path)
         raise IOError
 
@@ -73,6 +68,9 @@ def cond_sql_or(table_name, l_value):
 class EMSL_local(object):
 
     def __init__(self, db_path, fmt="gamess-us", debug=True):
+        if db_path is None:
+            db_path = self.db_from_format(fmt)
+
         self.db_path = db_path
         self.fmt = fmt
         self.shells = "S P D F G H I K L M".split()
@@ -87,6 +85,29 @@ class EMSL_local(object):
                                "nwchem" : self.wrap_nwchem,
                                "g94" : self.wrap_gaussian94}
         self.debug = debug
+
+    def db_from_format(self, fmt):
+        """Get appropriate db_path from corresponding format.
+
+        :param fmt: format needing a db_path, e.g. "nwchem"
+        :type fmt : str
+        :return: path to db
+        :rtype : str
+        """
+
+        db_map = {"gamess-us" : "db/Gamess-us.db",
+                  "nwchem" : "db/NWChem.db",
+                  "g94" : "db/Gaussian94.db"}
+        try:
+            dbfile = db_map[fmt]
+            db_path = os.path.dirname(os.path.dirname(__file__)) + "/" + dbfile
+        except KeyError:
+            msg = "Unable to find default db for format {0}\n".format(fmt)
+            sys.stderr.write(msg)
+            sys.exit(1)
+
+        db_path, db_path_changed = checkSQLite3(db_path, format)
+        return db_path
 
     def check_gamess_us(self, basis_blocks):
         """GAMESS-US supports only up to I basis functions. See if any
@@ -415,11 +436,31 @@ class EMSL_local(object):
         transformed = wrapper(unpacked, basis_name)
         return transformed
 
-    def get_basis(self, basis_name, elts=None):
-        #  __            _
-        # /__  _ _|_   _|_ ._ _  ._ _     _  _. |
-        # \_| (/_ |_    |  | (_) | | |   _> (_| |
-        #                                     |
+    def get_basis(self, basis_name, elts=[], convert_from=""):
+        """Get basis data for named basis set. If elts is empty, all elements
+         in the named basis set will be returned. If convert_from is set,
+         the basis set data will first be read in the convert_from format
+         and transformed to the self.fmt for output.
+
+        :param basis_name: name of the basis set
+        :type basis_name : str
+        :param elts: elements that need basis data
+        :type elts : list
+        :param convert_from: optional format to first convert from
+        :type convert_from : str
+        :return: basis set data for one or more elements
+        :rtype : list
+        """
+
+        if convert_from == "nwchem":
+            pass
+        elif convert_from == "gamess-us":
+            raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
+        elif convert_from == "g94":
+            raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
+        elif convert_from:
+            raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
+
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 

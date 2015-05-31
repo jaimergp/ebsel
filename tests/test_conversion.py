@@ -98,8 +98,6 @@ class ConversionTestCase(unittest.TestCase):
         counts.sort()
         print counts[-1]
         print shells
-
-
  
 
 def runSuite(cls, verbosity=2, name=None):

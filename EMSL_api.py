@@ -41,30 +41,14 @@ Example of use:
 version = "0.2.3"
 
 import sys
-import os
 
 from src.docopt import docopt
 from src.EMSL_dump import EMSL_dump
-from src.EMSL_local import EMSL_local, checkSQLite3
+from src.EMSL_local import EMSL_local
 
 db_map = {"gamess-us" : "db/Gamess-us.db",
           "nwchem" : "db/NWChem.db",
           "g94" : "db/Gaussian94.db"}
-
-def get_EMSL_local(db_path=None, fmt=None):
-    if db_path is None:
-        try:
-            dbfile = db_map[fmt]
-            db_path = os.path.dirname(__file__) + "/" + dbfile
-        except KeyError:
-            msg = "Unable to find default db for format {0}\n".format(fmt)
-            sys.stderr.write(msg)
-            sys.exit(1)
-
-    db_path, db_path_changed = checkSQLite3(db_path, format)
-
-    e = EMSL_local(db_path, fmt)
-    return e
 
 if __name__ == '__main__':
 
@@ -94,7 +78,7 @@ if __name__ == '__main__':
     # \_____/_|___/\__| \____/ \__,_|___/_|___/
 
     if arguments["list_basis"]:
-        e = get_EMSL_local(db_path, format)
+        e = EMSL_local(None, format)
 
         elts = arguments["--atom"]
         l = e.get_list_basis_available(elts)
@@ -111,7 +95,7 @@ if __name__ == '__main__':
     # | |___| \__ \ |_  | |___| |  __/ | | | | |  __/ | | | |_\__ \
     # \_____/_|___/\__| \____/|_|\___|_| |_| |_|\___|_| |_|\__|___/
     if arguments["list_atoms"]:
-        e = get_EMSL_local(db_path, format)
+        e = EMSL_local(None, format)
 
         basis_name = arguments["--basis"]
         l = e.get_list_element_available(basis_name)
@@ -124,7 +108,7 @@ if __name__ == '__main__':
     # | |_/ / (_| \__ \ \__ \ | (_| | (_| | || (_| |
     # \____/ \__,_|___/_|___/  \__,_|\__,_|\__\__,_|
     if arguments["get_basis_data"]:
-        e = get_EMSL_local(db_path, format)
+        e = EMSL_local(None, format)
         basis_name = arguments["--basis"]
         elts = arguments["--atom"]
 
