@@ -25,7 +25,7 @@ class ConversionTestCase(unittest.TestCase):
     def parse_nwchem(self, basis_name, element_symbol):
         #Test conversion from NWChem format to neutral intermediate
         c = conversion.Converter()
-        el = EMSL_local(None, fmt="nwchem", debug=False)
+        el = EMSL_local(fmt="nwchem", debug=False)
         basis = "\n".join(el.get_basis(basis_name, [element_symbol]))
         parsed = c.parse_one_nwchem(basis)
         return parsed
@@ -72,9 +72,10 @@ class ConversionTestCase(unittest.TestCase):
         converted = parsed._reformat_functions(parsed.functions)
         self.assertEqual(tall, converted[3])
 
-    def test_convert_from_nwchem(self):
+    def test_convert_from_nwchem_to_nwchem(self):
         #test 'internal' conversion from nwchem to nwchem
-        el = EMSL_local(None, fmt="nwchem", debug=False)
+        basis_name = "cc-pVTZ"
+        el = EMSL_local(fmt="nwchem", debug=False)
         data = el.get_basis("cc-pVTZ", ["C"], convert_from="")
         data2 = el.get_basis("cc-pVTZ", ["C"], convert_from="nwchem")
         self.assertTrue("BASIS SET reformatted" in data2[0])
@@ -87,12 +88,21 @@ class ConversionTestCase(unittest.TestCase):
         #print data2[0]
         #import ipdb; ipdb.set_trace()
 
+    def test_convert_from_nwchem_to_gamess(self):
+        #test 'internal' conversion from nwchem to gamess-us
+        basis_name = "cc-pVTZ"
+        el = EMSL_local(fmt="gamess-us", debug=False)
+        data = el.get_basis(basis_name, ["C"], convert_from="")
+        data2 = el.get_basis(basis_name, ["C"], convert_from="nwchem")
+        self.assertTrue("BASIS SET reformatted" in data2[0])
+        self.assertTrue("CARBON" in data2[0])
+
     def xtest_find_limits(self):
         c = conversion.Converter()
         counts = []
         shells = set()
         elements = [s[0] for s in c.elements[1:100]]
-        el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
+        el = EMSL_local(db_path="db/NWChem.db", fmt="nwchem", debug=False)
         for element in elements:
             for name, description in el.get_list_basis_available([element]):
                 basis_raw = el.get_basis(name, [element])

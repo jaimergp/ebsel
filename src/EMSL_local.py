@@ -67,7 +67,7 @@ def cond_sql_or(table_name, l_value):
 
 
 class EMSL_local(object):
-    def __init__(self, db_path, fmt="gamess-us", debug=True):
+    def __init__(self, db_path=None, fmt="gamess-us", debug=True):
         if db_path is None:
             db_path = self.db_from_format(fmt)
 
@@ -436,14 +436,14 @@ class EMSL_local(object):
         transformed = wrapper(unpacked, basis_name)
         return transformed
 
-    def convert_from_nwchem(self, basis_name, destintion_format, elts=[]):
+    def convert_from_nwchem(self, basis_name, destination_format, elts=[]):
         """Fetch basis set data from original NWChem representation and return
         it in standardized converted form appropriate to destination_format.
 
         :param basis_name: name of the basis set
         :type basis_name : str
-        :param destintion_format: format to convert to
-        :type destintion_format : str
+        :param destination_format: format to convert to
+        :type destination_format : str
         :param elts: elements that need basis data
         :type elts : list
         :return: basis set data for one or more elements
@@ -453,14 +453,16 @@ class EMSL_local(object):
         completed = []
         c = conversion.Converter()
         el = EMSL_local(None, fmt="nwchem", debug=False)
-        converters = {"nwchem" : c.format_one_nwchem}
-        wrappers = {"nwchem" : c.wrap_converted_nwchem}
+        converters = {"nwchem" : c.format_one_nwchem,
+                      "gamess-us" : c.format_one_gamess_us}
+        wrappers = {"nwchem" : c.wrap_converted_nwchem,
+                    "gamess-us" : c.wrap_converted_gamess_us}
 
         try:
-            converter = converters[destintion_format]
-            wrapper = wrappers[destintion_format]
+            converter = converters[destination_format]
+            wrapper = wrappers[destination_format]
         except KeyError:
-            raise ValueError("No defined conversion for {}".format(destintion_format))
+            raise ValueError("No defined conversion for {}".format(destination_format))
 
         if not elts:
             elts = el.get_list_element_available(basis_name)

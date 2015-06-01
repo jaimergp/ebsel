@@ -22,42 +22,42 @@ class LocalTestCase(unittest.TestCase):
 
     def test_gamess_us_am_pass(self):
         #GAMESS-US angular momentum check passes for max am <= G
-        el = EMSL_local("db/Gamess-us.db", fmt="gamess-us", debug=False)
+        el = EMSL_local(fmt="gamess-us", debug=False)
         el.get_basis("pCs-3", ["Cl"])
         self.assertFalse(el.am_too_large)
         self.assertEquals("G", el.max_am)
 
     def test_gamess_us_am_fail(self):
         #GAMESS-US angular momentum check fails for max am <= I
-        el = EMSL_local("db/Gamess-us.db", fmt="gamess-us", debug=False)
+        el = EMSL_local(fmt="gamess-us", debug=False)
         el.get_basis("cc-pv6z", ["Cl"])
         self.assertFalse(el.am_too_large)
         self.assertEqual("I", el.max_am)
 
     def test_gamess_us_am_L(self):
         #GAMESS-US angular momentum check special case for SP "L" basis
-        el = EMSL_local("db/Gamess-us.db", fmt="gamess-us", debug=False)
+        el = EMSL_local(fmt="gamess-us", debug=False)
         el.get_basis("6-31G", ["Cl"])
         self.assertFalse(el.am_too_large)
         self.assertEqual("P", el.max_am)
 
     def test_nwchem_am_pass(self):
         #NWChem angular momentum check passes for max am <= I
-        el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
+        el = EMSL_local(fmt="nwchem", debug=False)
         el.get_basis("cc-pv6z", ["Ne"])
         self.assertFalse(el.am_too_large)
         self.assertEqual("I", el.max_am)
 
     def test_nwchem_am_fail(self):
         #NWchem angular momentum check fails for max am > I
-        el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
+        el = EMSL_local(fmt="nwchem", debug=False)
         el.get_basis("cc-pv8z", ["Ne"])
         self.assertTrue(el.am_too_large)
         self.assertEqual("L", el.max_am)
 
     def test_gaussian94_am(self):
         #There is no upper am limit for this format! But verify max_am
-        el = EMSL_local("db/Gaussian94.db", fmt="g94", debug=False)
+        el = EMSL_local(fmt="g94", debug=False)
         el.get_basis("cc-pv8z", ["Ne"])
         self.assertFalse(el.am_too_large)
         self.assertEqual("L", el.max_am)
@@ -67,7 +67,7 @@ class LocalTestCase(unittest.TestCase):
         #a few older ones are treated as using cartesians
         expected_cartesian = ["3-21G", "4-31G", "6-31G", "6-31G*",
                               "6-31G**", "DZ (Dunning)", "DZP (Dunning)"] 
-        el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
+        el = EMSL_local(fmt="nwchem", debug=False)
         assigned = {}
         names = el.get_list_basis_available()
         names.sort()

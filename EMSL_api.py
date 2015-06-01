@@ -78,7 +78,7 @@ if __name__ == '__main__':
     # \_____/_|___/\__| \____/ \__,_|___/_|___/
 
     if arguments["list_basis"]:
-        e = EMSL_local(None, format)
+        e = EMSL_local(fmt=format)
 
         elts = arguments["--atom"]
         l = e.get_list_basis_available(elts)
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     # | |___| \__ \ |_  | |___| |  __/ | | | | |  __/ | | | |_\__ \
     # \_____/_|___/\__| \____/|_|\___|_| |_| |_|\___|_| |_|\__|___/
     if arguments["list_atoms"]:
-        e = EMSL_local(None, format)
+        e = EMSL_local(fmt=format)
 
         basis_name = arguments["--basis"]
         l = e.get_list_element_available(basis_name)
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     # | |_/ / (_| \__ \ \__ \ | (_| | (_| | || (_| |
     # \____/ \__,_|___/_|___/  \__,_|\__,_|\__\__,_|
     if arguments["get_basis_data"]:
-        e = EMSL_local(None, format)
+        e = EMSL_local(fmt=format)
         basis_name = arguments["--basis"]
         elts = arguments["--atom"]
 

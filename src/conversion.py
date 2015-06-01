@@ -54,6 +54,10 @@ class BasisSetEntry(object):
                    [192.1714, 0.2731],
                    [86.1207, 0.0303]])
 
+            DO NOT do this for SP functions ("L" functions in GAMESS
+            terminology). The programs demand a 3 column format for
+            SP functions.
+
             :param function_list: functions to reformat
             :type function_list : list
             :return: restructured function list
@@ -63,16 +67,18 @@ class BasisSetEntry(object):
             ffl = []
 
             for shell, lists in function_list:
-                #lists = lists[:5]
-                n_columns = len(lists[0]) - 1
-                columns = [list() for c in range(n_columns)]
+                if shell == "SP":
+                    ffl.append((shell, [lists]))
+                else:
+                    n_columns = len(lists[0]) - 1
+                    columns = [list() for c in range(n_columns)]
 
-                for fn in lists:
-                    for j, e in enumerate(fn[1:]):
-                        entry = [fn[0], e]
-                        columns[j].append(entry)
+                    for fn in lists:
+                        for j, e in enumerate(fn[1:]):
+                            entry = [fn[0], e]
+                            columns[j].append(entry)
 
-                ffl.append((shell, columns))
+                    ffl.append((shell, columns))
 
             return ffl
 
@@ -258,15 +264,21 @@ class Converter(object):
 
         reformatted = basis_data.reformat_functions()
         for shell, functions in reformatted:
-            #fns.append("{}     {}".format(basis_data.symbol, shell))
             for outer in functions:
                 fns.append("{}     {}".format(basis_data.symbol, shell))
-                for pair in outer:
-                    col1 = "{:.7f}".format(pair[0])
-                    col2 = "{:.7f}".format(pair[1])
+                for vals in outer:
+                    col1 = "{:.7f}".format(vals[0])
+                    col2 = "{:.7f}".format(vals[1])
+                    try:
+                        col3 = "{:.7f}".format(vals[2])
+                        pad3 = " " * (16 - col3.index("."))
+                    except IndexError:
+                        col3 = ""
+                        pad3 = ""
                     pad1 = " " * (8 - col1.index("."))
                     pad2 = " " * (16 - col2.index("."))
-                    row = pad1 + col1 + pad2 + col2
+
+                    row = pad1 + col1 + pad2 + col2 + pad3 + col3
                     fns.append(row)
 
         c2 = "#BASIS SET reformatted: [{}]".format(",".join(contracted))
@@ -290,8 +302,73 @@ class Converter(object):
         if not basis_set_entries:
             formatted = ""
         else:
-
             head = """basis "ao basis" {} """.format(spherical_or_cartesian)
             formatted = "\n".join([head] + basis_set_entries + ["END"])
 
+        return formatted
+
+    def format_one_gamess_us(self, basis_name, basis_data, origin):
+        """Format one block of basis data and tag it with an
+        origin comment.
+
+        :param basis_name: name of the basis set that provided the data
+        :type basis_name : str
+        :param basis_data: a standard "tall" basis set entry
+        :type basis_data : BasisSetEntry
+        :param origin: where the data originally came from
+        :type origin : str
+        :return: a formatted basis data block for GAMESS-US
+        :rtype : str
+        """
+
+        fns = []
+        fps = basis_data.functions_per_shell
+        contracted = []
+        for key, value in fps.items():
+            entry = "{}{}".format(value, key.lower())
+            contracted.append(entry)
+
+        reformatted = basis_data.reformat_functions()
+        for shell, functions in reformatted:
+            #GAMESS calls SP shells L shells
+            if shell == "SP":
+                shell = "L"
+            for outer in functions:
+                fns.append("{}   {}".format(shell, len(outer)))
+                for j, vals in enumerate(outer):
+                    col0 = str(j + 1)
+                    pad0 = " " * (3 - len(col0))
+                    col1 = "{:.7f}".format(vals[0])
+                    col2 = "{:.7f}".format(vals[1])
+                    try:
+                        col3 = "{:.7f}".format(vals[2])
+                        pad3 = " " * (15 - col3.index("."))
+                    except IndexError:
+                        col3 = ""
+                        pad3 = ""
+                    pad1 = " " * (7 - col1.index("."))
+                    pad2 = " " * (15 - col2.index("."))
+                    row = pad0 + col0 + pad1 + col1 + pad2 + col2 + pad3 + col3
+                    fns.append(row)
+
+        c1 = basis_data.name.upper()
+        c2 = "!BASIS SET reformatted: [{}]".format(",".join(contracted))
+        c3 = "!origin: {}".format(origin)
+
+        block = "\n".join([c1, c2, c3] + fns)
+        return block
+
+    def wrap_converted_gamess_us(self, basis_set_entries, spherical_or_cartesian):
+        """Wrap a list of converted basis set entries into a basis
+        set data section suitable for embedding in GAMESS-US input decks.
+
+        :param basis_set_entries: one or more BasisSetEntry values to wrap
+        :type basis_set_entries : list
+        :param spherical_or_cartesian: pure or cartesian form functions
+        :type spherical_or_cartesian : str
+        :return: formatted basis set data section
+        :rtype : str
+        """
+
+        formatted = "\n".join(basis_set_entries)
         return formatted
