@@ -6,6 +6,7 @@ import sqlite3
 import sys
 import os
 import json
+import conversion
 
 def checkSQLite3(db_path, fmt):
     # Check if db file is readable
@@ -66,7 +67,6 @@ def cond_sql_or(table_name, l_value):
 
 
 class EMSL_local(object):
-
     def __init__(self, db_path, fmt="gamess-us", debug=True):
         if db_path is None:
             db_path = self.db_from_format(fmt)
@@ -436,6 +436,44 @@ class EMSL_local(object):
         transformed = wrapper(unpacked, basis_name)
         return transformed
 
+    def convert_from_nwchem(self, basis_name, destintion_format, elts=[]):
+        """Fetch basis set data from original NWChem representation and return
+        it in standardized converted form appropriate to destination_format.
+
+        :param basis_name: name of the basis set
+        :type basis_name : str
+        :param destintion_format: format to convert to
+        :type destintion_format : str
+        :param elts: elements that need basis data
+        :type elts : list
+        :return: basis set data for one or more elements
+        :rtype : list
+        """
+
+        completed = []
+        c = conversion.Converter()
+        el = EMSL_local(None, fmt="nwchem", debug=False)
+        converters = {"nwchem" : c.format_one_nwchem}
+        wrappers = {"nwchem" : c.wrap_converted_nwchem}
+
+        try:
+            converter = converters[destintion_format]
+            wrapper = wrappers[destintion_format]
+        except KeyError:
+            raise ValueError("No defined conversion for {}".format(destintion_format))
+
+        if not elts:
+            elts = el.get_list_element_available(basis_name)
+
+        for element in elts:
+            basis = "\n".join(el.get_basis(basis_name, [element]))
+            parsed = c.parse_one_nwchem(basis)
+            converted = converter(basis_name, parsed, "db/NWChem.db")
+            completed.append(converted)
+
+        wrapped = wrapper(completed, parsed.spherical_or_cartesian)
+        return [wrapped]
+
     def get_basis(self, basis_name, elts=[], convert_from=""):
         """Get basis data for named basis set. If elts is empty, all elements
          in the named basis set will be returned. If convert_from is set,
@@ -453,7 +491,7 @@ class EMSL_local(object):
         """
 
         if convert_from == "nwchem":
-            pass
+            return self.convert_from_nwchem(basis_name, self.fmt, elts=elts)
         elif convert_from == "gamess-us":
             raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
         elif convert_from == "g94":

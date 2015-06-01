@@ -27,7 +27,10 @@ class BasisSetEntry(object):
             self.spherical_or_cartesian = basis_dict["spherical_or_cartesian"]
             self.functions = basis_dict["functions"]
 
-        def reformat_functions(self, function_list):
+        def reformat_functions(self):
+            return self._reformat_functions(self.functions)
+
+        def _reformat_functions(self, function_list):
             """These are equivalent:
 
             c1 e1 e2
@@ -221,10 +224,7 @@ class Converter(object):
             #this will be a line heading a group of coefficients
             #Na   SP
             else:
-                try:
-                    symbol, shell_type = line.split()
-                except ValueError:
-                    import ipdb; ipdb.set_trace()
+                symbol, shell_type = line.split()
                 shell_type = shell_type.upper()
                 atomic_number = self.get_atomic_number(symbol)
                 element_symbol = self.get_element_symbol(atomic_number)
@@ -234,3 +234,65 @@ class Converter(object):
                 d["functions"].append((shell_type, []))
 
         return BasisSetEntry(d)
+
+    def format_one_nwchem(self, basis_name, basis_data, origin):
+        """Format one block of basis data and tag it with an
+        origin comment.
+
+        :param basis_name: name of the basis set that provided the data
+        :type basis_name : str
+        :param basis_data: a standard "tall" basis set entry
+        :type basis_data : BasisSetEntry
+        :param origin: where the data originally came from
+        :type origin : str
+        :return: a formatted basis data block for NWChem
+        :rtype : str
+        """
+
+        fns = []
+        fps = basis_data.functions_per_shell
+        contracted = []
+        for key, value in fps.items():
+            entry = "{}{}".format(value, key.lower())
+            contracted.append(entry)
+
+        reformatted = basis_data.reformat_functions()
+        for shell, functions in reformatted:
+            #fns.append("{}     {}".format(basis_data.symbol, shell))
+            for outer in functions:
+                fns.append("{}     {}".format(basis_data.symbol, shell))
+                for pair in outer:
+                    col1 = "{:.7f}".format(pair[0])
+                    col2 = "{:.7f}".format(pair[1])
+                    pad1 = " " * (8 - col1.index("."))
+                    pad2 = " " * (16 - col2.index("."))
+                    row = pad1 + col1 + pad2 + col2
+                    fns.append(row)
+
+        c1 = "# {} {}".format(basis_data.symbol, basis_name)
+        c2 = "#BASIS SET reformatted: [{}]".format(",".join(contracted))
+        c3 = "#origin: {}".format(origin)
+
+        block = "\n".join([c1, c2, c3] + fns)
+        return block
+
+    def wrap_converted_nwchem(self, basis_set_entries, spherical_or_cartesian):
+        """Wrap a list of converted basis set entries into a basis
+        set data section suitable for embedding in NWChem input decks.
+
+        :param basis_set_entries: one or more BasisSetEntry values to wrap
+        :type basis_set_entries : list
+        :param spherical_or_cartesian: pure or cartesian form functions
+        :type spherical_or_cartesian : str
+        :return: formatted basis set data section
+        :rtype : str
+        """
+
+        if not basis_set_entries:
+            formatted = ""
+        else:
+
+            head = """basis "ao basis" {} """.format(spherical_or_cartesian)
+            formatted = "\n".join([head] + basis_set_entries + ["END"])
+
+        return formatted

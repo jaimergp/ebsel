@@ -25,7 +25,7 @@ class ConversionTestCase(unittest.TestCase):
     def parse_nwchem(self, basis_name, element_symbol):
         #Test conversion from NWChem format to neutral intermediate
         c = conversion.Converter()
-        el = EMSL_local("db/NWChem.db", fmt="nwchem", debug=False)
+        el = EMSL_local(None, fmt="nwchem", debug=False)
         basis = "\n".join(el.get_basis(basis_name, [element_symbol]))
         parsed = c.parse_one_nwchem(basis)
         return parsed
@@ -69,9 +69,23 @@ class ConversionTestCase(unittest.TestCase):
                    [0.3818, 0.564667]]])
         parsed = self.parse_nwchem("cc-pVTZ", "Cl")
         self.assertEqual(wide, parsed.functions[3])
-        converted = parsed.reformat_functions(parsed.functions)
+        converted = parsed._reformat_functions(parsed.functions)
         self.assertEqual(tall, converted[3])
 
+    def test_convert_from_nwchem(self):
+        #test 'internal' conversion from nwchem to nwchem
+        el = EMSL_local(None, fmt="nwchem", debug=False)
+        data = el.get_basis("cc-pVTZ", ["C"], convert_from="")
+        data2 = el.get_basis("cc-pVTZ", ["C"], convert_from="nwchem")
+        self.assertTrue("BASIS SET reformatted" in data2[0])
+        c = conversion.Converter()
+        f1 = c.parse_one_nwchem(data[0]).reformat_functions()
+        f2 = c.parse_one_nwchem(data2[0]).reformat_functions()
+        #print
+        #print data[0]
+        #print
+        #print data2[0]
+        #import ipdb; ipdb.set_trace()
 
     def xtest_find_limits(self):
         c = conversion.Converter()
