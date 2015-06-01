@@ -125,7 +125,7 @@ class Converter(object):
         name for each element.
         """
 
-        datfile = os.path.dirname(__file__) + "/src/elts_abrev.dat"
+        datfile = os.path.dirname(__file__) + "/elts_abrev.dat"
         if not os.path.exists(datfile):
             datfile = "src/elts_abrev.dat"
 
@@ -269,11 +269,10 @@ class Converter(object):
                     row = pad1 + col1 + pad2 + col2
                     fns.append(row)
 
-        c1 = "# {} {}".format(basis_data.symbol, basis_name)
         c2 = "#BASIS SET reformatted: [{}]".format(",".join(contracted))
         c3 = "#origin: {}".format(origin)
 
-        block = "\n".join([c1, c2, c3] + fns)
+        block = "\n".join([c2, c3] + fns)
         return block
 
     def wrap_converted_nwchem(self, basis_set_entries, spherical_or_cartesian):
