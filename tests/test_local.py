@@ -130,6 +130,39 @@ class LocalTestCase(unittest.TestCase):
         names = el.get_available_basis_sets_fs()
         self.assertEqual(expected, names)
 
+    def test_get_available_elements_fs(self):
+        #test that we can get elements from supplemental basis set stored on
+        #the file system
+        el = EMSL_local(fmt="nwchem")
+        expected = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
+                    'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca',
+                    'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr']
+
+        names = el.get_available_elements_fs("g3mp2large")
+        self.assertEqual(expected, names)
+
+    def test_get_available_elements(self):
+        #verify element listing from standard db-stored basis set
+        el = EMSL_local(fmt="nwchem")
+        expected = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
+                    'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca',
+                    'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', "I"]
+
+        names = el.get_available_elements("6-311G")
+        self.assertEqual(expected, names)
+
+    def test_get_available_elements_fused(self):
+        #element data is automatically supplemented via basis sets stored
+        #on the file system
+        el = EMSL_local(fmt="nwchem")
+        expected = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
+                    'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca',
+                    'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr']
+
+        names = el.get_available_elements("g3mp2large")
+        self.assertEqual(expected, names)
+
+
     def test_get_available_basis_sets_fs_name_filter(self):
         #test that we can get the name of supplemental basis set stored on
         #the file system -- with name filtering

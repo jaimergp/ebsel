@@ -327,6 +327,56 @@ class EMSL_local(object):
 
         return sections
 
+    def load_nwbas_file(self, file_name):
+        """Load and parse a single nwbas supplemental basis data
+        set file.
+
+        :param file_name: name of file to load
+        :type file_name : str
+        :return: parsed BasisSetEntry list
+        :rtype : list
+        """
+        c = conversion.Converter()
+        with open(file_name) as infile:
+            file_data = infile.read()
+        parsed = c.parse_multi_nwchem(file_data)
+
+        return parsed
+
+    def get_nwbas_files(self):
+        """Get available *.nwbas files for supplementing basis set data
+        stored in sqlite. Also warn if extraneous files are present.
+
+        :return: *.nwbas file paths and names
+        :rtype : list
+        """
+
+        db_root = os.path.dirname(os.path.dirname(__file__)) + "/db/"
+        for ignored in ["gamess-us", "g94"]:
+            pattern = db_root + ignored + "/*"
+            flist = glob.glob(pattern)
+            for entry in sorted(flist):
+                if not entry.endswith("README.txt"):
+                    msg = "WARNING: found file {} -- no files in this directory are processed\n".format(entry)
+                    sys.stderr.write(msg)
+
+        pattern = db_root + "nwchem/*"
+        flist = glob.glob(pattern)
+        flist.sort()
+        filtered = []
+
+        for entry in flist:
+            if entry.endswith(".nwbas"):
+                name = os.path.basename(entry).split(".nwbas")[0]
+                e = {"name" : name,
+                     "file" : entry}
+                filtered.append(e)
+            elif not entry.endswith("README.txt"):
+                msg = "WARNING: found unrecognized file {} -- will not be processed\n".format(entry)
+                sys.stderr.write(msg)
+
+        return filtered
+
     def get_available_basis_sets_fs(self, elements=[], allowed_basis_names=[]):
         """Return all the basis set names PRESENT ON THE FILE SYSTEM that
          contain the specified elements. This function looks at the
@@ -342,44 +392,24 @@ class EMSL_local(object):
         :param allowed_basis_names: optional name-filter for basis set names
         :type allowed_basis_names : list
         """
-        conv = conversion.Converter()
         names = []
         element_set = set([e.lower() for e in elements])
 
-        db_root = os.path.dirname(os.path.dirname(__file__)) + "/db/"
-        for ignored in ["gamess-us", "g94"]:
-            pattern = db_root + ignored + "/*"
-            flist = glob.glob(pattern)
-            for entry in sorted(flist):
-                if not entry.endswith("README.txt"):
-                    msg = "WARNING: found file {} -- no files in this directory are processed\n".format(entry)
-                    sys.stderr.write(msg)
-
-        pattern = db_root + "nwchem/*"
-        flist = glob.glob(pattern)
+        flist = self.get_nwbas_files()
         for entry in sorted(flist):
-            if entry.endswith(".nwbas"):
-                name = os.path.basename(entry).split(".nwbas")[0]
-                t = (name, "db/" + entry.split("db/", 1)[-1])
+            t = (entry["name"], "db/" + entry["file"].split("db/", 1)[-1])
+            if entry["name"] in allowed_basis_names or not allowed_basis_names:
+                if not elements:
+                    names.append(t)
 
-                if name in allowed_basis_names or not allowed_basis_names:
-                    if not elements:
+                # if there is an element filter, need to parse actual
+                # basis set data and make sure that all requested elements
+                # are present
+                else:
+                    parsed = self.load_nwbas_file(entry["file"])
+                    parsed_set = set([p.symbol.lower() for p in parsed])
+                    if element_set.issubset(parsed_set):
                         names.append(t)
-
-                    #if there is an element filter, need to parse actual
-                    #basis set data and make sure that all requested elements
-                    #are present
-                    else:
-                        with open(entry) as infile:
-                            file_data = infile.read()
-                        parsed = conv.parse_multi_nwchem(file_data)
-                        parsed_set = set([p.symbol.lower() for p in parsed])
-                        if element_set.issubset(parsed_set):
-                            names.append(t)
-
-            elif not entry.endswith("README.txt"):
-                msg = "WARNING: found unrecognized file {} -- will not be processed\n".format(entry)
-                sys.stderr.write(msg)
 
         return names
     
@@ -444,9 +474,27 @@ class EMSL_local(object):
 
         return final + extra
 
+    def get_available_elements_fs(self, basis_name):
+        """Get the available elements from a basis set that is stored
+        on the file system.
+
+        :param basis_name: name of basis set
+        :type basis_name : str
+        :return: element symbols
+        :rtype : list
+        """
+
+        flist = self.get_nwbas_files()
+        filtered = [x for x in flist if x["name"] == basis_name]
+        if filtered:
+            parsed = self.load_nwbas_file(filtered[0]["file"])
+            elements = [p.symbol for p in parsed]
+        else:
+            elements = []
+
+        return elements
 
     def get_available_elements(self, basis_name):
-
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
@@ -459,6 +507,9 @@ class EMSL_local(object):
         data = [str(i[0]) for i in data]
 
         conn.close()
+
+        if not data:
+            data = self.get_available_elements_fs(basis_name)
         return data
 
     def process_raw_data(self, l_data_raw, basis_name):
