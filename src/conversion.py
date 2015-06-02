@@ -183,11 +183,39 @@ class Converter(object):
         i = slower.index(symbol.lower())
         return i
 
+    def parse_multi_nwchem(self, text):
+        """Parse a block of NWChem atomic orbital basis set data potentially
+        containing multiple elements. N.B.: not for ECP data!
+
+        :param text: a text block of basis set data for one or more elements
+        :type text : str
+        :return: parsed basis set data
+        :rtype : list
+        """
+
+        chunks = []
+        for line in text.split("\n"):
+            lstrip = line.lower().strip()
+            if not lstrip:
+                continue
+            if lstrip.startswith("basis"):
+                chunks.append([line])
+            else:
+                #skip any comment lines encountered before first element
+                if not chunks:
+                    pass
+                else:
+                    chunks[-1].append(line)
+
+        rejoined = ["\n".join(c) for c in chunks]
+        parsed = [self.parse_one_nwchem(r) for r in rejoined]
+        return parsed
+
     def parse_one_nwchem(self, text):
         """Parse a block of NWChem atomic orbital basis set data for
         one element. N.B.: not for ECP data!
 
-        :param text: a textual block of basis set data for one element
+        :param text: a text block of basis set data for one element
         :type text : str
         :return: parsed basis set data
         :rtype : BasisSetEntry

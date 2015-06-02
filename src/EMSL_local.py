@@ -2,11 +2,12 @@
 # -*- coding:utf-8 mode:python; tab-width:4; indent-tabs-mode:nil; py-indent-offset:4 -*-
 ##
 
+import conversion
+import glob
+import json
+import os
 import sqlite3
 import sys
-import os
-import json
-import conversion
 
 def checkSQLite3(db_path, fmt):
     # Check if db file is readable
@@ -325,6 +326,62 @@ class EMSL_local(object):
             sections.append(s)
 
         return sections
+
+    def get_available_basis_sets_fs(self, elements=[], allowed_basis_names=[]):
+        """Return all the basis set names PRESENT ON THE FILE SYSTEM that
+         contain the specified elements. This function looks at the
+         supplementary db/nwchem/*.nwbas files to find matching basis set
+         data.
+
+         If elements is empty, just get all basis set names.
+         If allowed_basis_names is set, only accept results with names in
+         allowed_basis_names.
+
+        :param elements: optional element symbols to match
+        :type elements : list
+        :param allowed_basis_names: optional name-filter for basis set names
+        :type allowed_basis_names : list
+        """
+        conv = conversion.Converter()
+        names = []
+        element_set = set([e.lower() for e in elements])
+
+        db_root = os.path.dirname(os.path.dirname(__file__)) + "/db/"
+        for ignored in ["gamess-us", "g94"]:
+            pattern = db_root + ignored + "/*"
+            flist = glob.glob(pattern)
+            for entry in sorted(flist):
+                if not entry.endswith("README.txt"):
+                    msg = "WARNING: found file {} -- no files in this directory are processed\n".format(entry)
+                    sys.stderr.write(msg)
+
+        pattern = db_root + "nwchem/*"
+        flist = glob.glob(pattern)
+        for entry in sorted(flist):
+            if entry.endswith(".nwbas"):
+                name = os.path.basename(entry).split(".nwbas")[0]
+                t = (name, entry.split("db/", 1)[-1])
+
+                if name in allowed_basis_names or not allowed_basis_names:
+                    if not elements:
+                        names.append(t)
+
+                    #if there is an element filter, need to parse actual
+                    #basis set data and make sure that all requested elements
+                    #are present
+                    else:
+                        with open(entry) as infile:
+                            file_data = infile.read()
+                        parsed = conv.parse_multi_nwchem(file_data)
+                        parsed_set = set([p.symbol.lower() for p in parsed])
+                        if element_set.issubset(parsed_set):
+                            names.append(t)
+
+            elif not entry.endswith("README.txt"):
+                msg = "WARNING: found unrecognized file {} -- will not be processed\n".format(entry)
+                sys.stderr.write(msg)
+
+        return names
     
     def get_available_basis_sets(self, elements=[], allowed_basis_names=[]):
         """Return all the basis set names that contain the specified elements.

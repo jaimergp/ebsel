@@ -121,6 +121,40 @@ class LocalTestCase(unittest.TestCase):
         names = el.get_available_basis_sets(elements=elements,
                                             allowed_basis_names=basis_names)
         self.assertEqual(expected, names)
+
+    def test_get_available_basis_sets_fs_basic(self):
+        #test that we can get the name of supplemental basis set stored on
+        #the file system
+        el = EMSL_local(fmt="nwchem")
+        expected = [("g3mp2large", "nwchem/g3mp2large.nwbas")]
+        names = el.get_available_basis_sets_fs()
+        self.assertEqual(expected, names)
+
+    def test_get_available_basis_sets_fs_name_filter(self):
+        #test that we can get the name of supplemental basis set stored on
+        #the file system -- with name filtering
+        el = EMSL_local(fmt="nwchem")
+        expected = []
+        basis_names = ["g3mp2gigantic"]
+        names = el.get_available_basis_sets_fs(allowed_basis_names=basis_names)
+        self.assertEqual(expected, names)
+
+    def test_get_available_basis_sets_fs_element_filter(self):
+        #test that we can get the name of supplemental basis set stored on
+        #the file system -- with element filtering
+        el = EMSL_local(fmt="nwchem")
+        expected1 = [("g3mp2large", "nwchem/g3mp2large.nwbas")]
+        expected2 = []
+        elements1 = ["Ar", "Kr"]
+        elements2 = ["Kr", "Xe"]
+
+        #g3mp2large has krypton parameters but not xenon, so second retrieval
+        #should produce nothing
+        names1 = el.get_available_basis_sets_fs(elements=elements1)
+        self.assertEqual(expected1, names1)
+
+        names2 = el.get_available_basis_sets_fs(elements=elements2)
+        self.assertEqual(expected2, names2)
  
 
 def runSuite(cls, verbosity=2, name=None):
