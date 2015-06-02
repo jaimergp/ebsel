@@ -360,7 +360,7 @@ class EMSL_local(object):
         for entry in sorted(flist):
             if entry.endswith(".nwbas"):
                 name = os.path.basename(entry).split(".nwbas")[0]
-                t = (name, entry.split("db/", 1)[-1])
+                t = (name, "db/" + entry.split("db/", 1)[-1])
 
                 if name in allowed_basis_names or not allowed_basis_names:
                     if not elements:
@@ -438,7 +438,11 @@ class EMSL_local(object):
 
         final = [i[:] for i in info]
 
-        return final
+        #look for additional basis set data from the file system
+        extra = self.get_available_basis_sets_fs(elements=elements,
+                                                 allowed_basis_names=allowed_basis_names)
+
+        return final + extra
 
 
     def get_available_elements(self, basis_name):

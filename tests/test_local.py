@@ -126,7 +126,7 @@ class LocalTestCase(unittest.TestCase):
         #test that we can get the name of supplemental basis set stored on
         #the file system
         el = EMSL_local(fmt="nwchem")
-        expected = [("g3mp2large", "nwchem/g3mp2large.nwbas")]
+        expected = [("g3mp2large", "db/nwchem/g3mp2large.nwbas")]
         names = el.get_available_basis_sets_fs()
         self.assertEqual(expected, names)
 
@@ -143,7 +143,7 @@ class LocalTestCase(unittest.TestCase):
         #test that we can get the name of supplemental basis set stored on
         #the file system -- with element filtering
         el = EMSL_local(fmt="nwchem")
-        expected1 = [("g3mp2large", "nwchem/g3mp2large.nwbas")]
+        expected1 = [("g3mp2large", "db/nwchem/g3mp2large.nwbas")]
         expected2 = []
         elements1 = ["Ar", "Kr"]
         elements2 = ["Kr", "Xe"]
@@ -155,6 +155,18 @@ class LocalTestCase(unittest.TestCase):
 
         names2 = el.get_available_basis_sets_fs(elements=elements2)
         self.assertEqual(expected2, names2)
+
+    def test_get_available_basis_sets_supplemented(self):
+        #test get_available_basis_sets supplemented with basis data from
+        #the file system
+        el = EMSL_local(fmt="nwchem")
+        basis_names = ["cc-pVTZ", "g3mp2large", "6-31G"]
+        expected = [("6-31G", "VDZ Valence Double Zeta: 2 Funct.'s/Valence AO"),
+                    ("cc-pVTZ", "VTZ2P Valence Triple Zeta + Polarization on All Atoms"),
+                    ("g3mp2large", "db/nwchem/g3mp2large.nwbas")]
+
+        names = el.get_available_basis_sets(allowed_basis_names=basis_names)
+        self.assertEqual(expected, names)
  
 
 def runSuite(cls, verbosity=2, name=None):
