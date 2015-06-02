@@ -69,7 +69,7 @@ class LocalTestCase(unittest.TestCase):
                               "6-31G**", "DZ (Dunning)", "DZP (Dunning)"] 
         el = EMSL_local(fmt="nwchem", debug=False)
         assigned = {}
-        names = el.get_list_basis_available()
+        names = el.get_available_basis_sets()
         names.sort()
         for name, description in names:
             fn_type = el.spherical_or_cartesian(name)
@@ -79,6 +79,48 @@ class LocalTestCase(unittest.TestCase):
                 assigned[fn_type] = [name]
 
         self.assertEqual(expected_cartesian, assigned["cartesian"])
+
+    def test_get_available_basis_sets_name_filter(self):
+        #test get_available_basis_sets with basis set name filtering
+        el = EMSL_local(fmt="nwchem")
+        basis_names = ["cc-pVTZ", "fakename", "6-31G"]
+        expected = [("6-31G", "VDZ Valence Double Zeta: 2 Funct.'s/Valence AO"),
+                    ("cc-pVTZ", "VTZ2P Valence Triple Zeta + Polarization on All Atoms")]
+
+        names = el.get_available_basis_sets(allowed_basis_names=basis_names)
+        self.assertEqual(expected, names)
+
+    def test_get_available_basis_sets_element_filter(self):
+        #test get_available_basis_sets with element filtering
+        el = EMSL_local(fmt="nwchem")
+        elements = ["Hg", "Pb", "Th"]
+        expected = [("ANO-RCC",
+                     "full ANO-RCC basis, reduce to get MB, VDZP, VTZP and VQZP quality"),
+                    ("CRENBL ECP", "N/A"),
+                    ("CRENBL ECP-number2", "1D UNCONTR Uncontracted"),
+                    ("SARC-DKH", "N/A"),
+                    ("SARC-ZORA",
+                     "Segmented all-electron relativistically contracted basis sets for ZORA"),
+                    ("Stuttgart RLC ECP", "DZ Double Zeta Basis Set designed for an ECP"),
+                    ("Stuttgart RLC ECP-number2", "N/A"),
+                    ("UGBS", "UGBS basis by de Castro and Jorge")]
+
+        names = el.get_available_basis_sets(elements=elements)
+        self.assertEqual(expected, names)
+
+    def test_get_available_basis_sets_combined_filter(self):
+        #test get_available_basis_sets with element + basis set name filtering
+        el = EMSL_local(fmt="nwchem")
+        elements = ["Hg", "Pb", "Th"]
+        basis_names = ["SARC-ZORA", "ANO-RCC"]
+        expected = [("ANO-RCC",
+                     "full ANO-RCC basis, reduce to get MB, VDZP, VTZP and VQZP quality"),
+                    ("SARC-ZORA",
+                     "Segmented all-electron relativistically contracted basis sets for ZORA")]
+
+        names = el.get_available_basis_sets(elements=elements,
+                                            allowed_basis_names=basis_names)
+        self.assertEqual(expected, names)
  
 
 def runSuite(cls, verbosity=2, name=None):

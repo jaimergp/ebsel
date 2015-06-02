@@ -32,7 +32,7 @@ def checkSQLite3(db_path, fmt):
     # Check if the file system allows I/O on sqlite3 (lustre)
     # If not, copy on /dev/shm and remove after opening
     try:
-        EMSL_local(db_path, fmt).get_list_basis_available()
+        EMSL_local(db_path, fmt).get_available_basis_sets()
     except sqlite3.OperationalError:
         print >>sys.stdrerr, "I/O Error for you file system"
         print >>sys.stderr, "Try some fixe"
@@ -45,7 +45,7 @@ def checkSQLite3(db_path, fmt):
 
     # Try again to check
     try:
-        EMSL_local(db_path, fmt).get_list_basis_available()
+        EMSL_local(db_path, fmt).get_available_basis_sets()
     except:
         print >>sys.stderr, "Sorry..."
         os.system("rm -f /dev/shm/%d.db" % (os.getpid()))
@@ -128,7 +128,6 @@ class EMSL_local(object):
         @rtype : tuple
         """
 
-        shells = set(self.shells)
         greatest = 0
         d_encountered = False
 
@@ -173,7 +172,6 @@ class EMSL_local(object):
         """
 
         names = ["ao basis", "cd basis", "xc basis"]
-        shells = set(self.shells)
         greatest = 0
 
         for block_json in basis_blocks:
@@ -211,7 +209,6 @@ class EMSL_local(object):
         @rtype : tuple
         """
 
-        shells = set(self.shells)
         greatest = 0
 
         for block in basis_blocks:
@@ -329,73 +326,54 @@ class EMSL_local(object):
 
         return sections
     
-    def get_list_basis_available(self, elts=[], basis=[]):
-        """
-        return all the basis name who contant all the elts
-        """
-        
-        # If not elts just get the distinct name
-        # Else: 1) fetch for geting all the run_id whos satisfy the condition
-        #       2) Get name, description
-        #       3) Parse it
+    def get_available_basis_sets(self, elements=[], allowed_basis_names=[]):
+        """Return all the basis set names that contain the specified elements.
+         If elements is empty, just get all basis set names.
+         If allowed_basis_names is set, only accept results with names in
+         allowed_basis_names.
 
-        # ~#~#~#~ #
-        # I n i t #
-        # ~#~#~#~ #
+        :param elements: optional element symbols to match
+        :type elements : list
+        :param allowed_basis_names: optional name-filter for basis set names
+        :type allowed_basis_names : list
+        """
 
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
-        # ~#~#~#~#~#~ #
-        # F i l t e r #
-        # ~#~#~#~#~#~ #
-
-        if basis:
-            cmd_filter_basis = " ".join(cond_sql_or("name", basis, glob=True))
+        if allowed_basis_names:
+            basis_filter_clause = " ".join(cond_sql_or("name", allowed_basis_names))
         else:
-            cmd_filter_basis = "(1)"
+            basis_filter_clause = "(1)"
 
-        # Not Ets
-        if not elts:
+        if not elements:
             cmd = """SELECT DISTINCT name, description
                      FROM basis_tab
                      WHERE {0}"""
 
-            cmd = cmd.format(cmd_filter_basis)
+            cmd = cmd.format(basis_filter_clause)
 
         else:
-
-            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
-            # G e t t i n g _ B a s i s I d #
-            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
-
-            str_ = """SELECT DISTINCT basis_id
+            q = """SELECT DISTINCT basis_id
                       FROM output_tab
-                      WHERE elt=? AND {0}""".format(cmd_filter_basis)
+                      WHERE elt=? AND {0}""".format(basis_filter_clause)
 
-            cmd = " INTERSECT ".join([str_] * len(elts)) + ";"
-            c.execute(cmd, elts)
+            cmd = " INTERSECT ".join([q] * len(elements)) + ";"
+            c.execute(cmd, elements)
 
-            l_basis_id = [i[0] for i in c.fetchall()]
+            basis_ids = [i[0] for i in c.fetchall()]
 
-            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
-            # C r e a t e _ t h e _ c m d #
-            # ~#~#~#~#~#~#~#~#~#~#~#~#~#~ #
-
-            cmd_filter_basis = " ".join(cond_sql_or("basis_id", l_basis_id))
-            cmd_filter_ele = " ".join(cond_sql_or("elt", elts))
+            basis_filter_clause = " ".join(cond_sql_or("basis_id", basis_ids))
+            elements_filter_clause = " ".join(cond_sql_or("elt", elements))
 
             column_to_fech = "name, description"
 
-            filter_where = " ({}) AND ({})".format(cmd_filter_ele, cmd_filter_basis)
+            filter_where = " ({}) AND ({})".format(elements_filter_clause, basis_filter_clause)
 
             cmd = """SELECT DISTINCT {0}
                      FROM output_tab
                      WHERE {1}
                      ORDER BY name""".format(column_to_fech, filter_where)
-        # ~#~#~#~#~ #
-        # F e t c h #
-        # ~#~#~#~#~ #
 
         c.execute(cmd)
         info = c.fetchall()
@@ -406,7 +384,7 @@ class EMSL_local(object):
         return final
 
 
-    def get_list_element_available(self, basis_name):
+    def get_available_elements(self, basis_name):
 
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
@@ -467,7 +445,7 @@ class EMSL_local(object):
             raise ValueError("No defined conversion for {}".format(destination_format))
 
         if not elts:
-            elts = el.get_list_element_available(basis_name)
+            elts = el.get_available_elements(basis_name)
 
         for element in elts:
             basis = "\n".join(el.get_basis(basis_name, [element]))
@@ -526,11 +504,11 @@ class EMSL_local(object):
 if __name__ == "__main__":
 
     e = EMSL_local("EMSL.db")
-    l = e.get_list_basis_available()
+    l = e.get_available_basis_sets()
     for i in l:
         print i
 
-    l = e.get_list_element_available("pc-0")
+    l = e.get_available_elements("pc-0")
     print l
 
     l = e.get_basis("cc-pVTZ", ["H", "He"])

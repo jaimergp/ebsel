@@ -81,7 +81,7 @@ if __name__ == '__main__':
         e = EMSL_local(fmt=format)
 
         elts = arguments["--atom"]
-        l = e.get_list_basis_available(elts)
+        l = e.get_available_basis_sets(elts)
 
         ct = 1
         for name, des in l:
@@ -98,7 +98,7 @@ if __name__ == '__main__':
         e = EMSL_local(fmt=format)
 
         basis_name = arguments["--basis"]
-        l = e.get_list_element_available(basis_name)
+        l = e.get_available_elements(basis_name)
         print ", ".join(l)
 
     # ______           _           _       _

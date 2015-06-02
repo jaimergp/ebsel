@@ -104,7 +104,7 @@ class ConversionTestCase(unittest.TestCase):
         elements = [s[0] for s in c.elements[1:100]]
         el = EMSL_local(db_path="db/NWChem.db", fmt="nwchem", debug=False)
         for element in elements:
-            for name, description in el.get_list_basis_available([element]):
+            for name, description in el.get_available_basis_sets([element]):
                 basis_raw = el.get_basis(name, [element])
                 basis = "\n".join(basis_raw)
                 parsed = c.parse_one_nwchem(basis)
