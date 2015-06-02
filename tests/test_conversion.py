@@ -76,26 +76,26 @@ class ConversionTestCase(unittest.TestCase):
         #test 'internal' conversion from nwchem to nwchem
         basis_name = "cc-pVTZ"
         el = EMSL_local(fmt="nwchem", debug=False)
-        data = el.get_basis("cc-pVTZ", ["C"], convert_from="")
-        data2 = el.get_basis("cc-pVTZ", ["C"], convert_from="nwchem")
+        data = el.get_basis("cc-pVTZ", ["Cl"], convert_from="")
+        data2 = el.get_basis("cc-pVTZ", ["Cl"], convert_from="nwchem")
         self.assertTrue("BASIS SET reformatted" in data2[0])
-        c = conversion.Converter()
-        f1 = c.parse_one_nwchem(data[0]).reformat_functions()
-        f2 = c.parse_one_nwchem(data2[0]).reformat_functions()
-        #print
-        #print data[0]
-        #print
-        #print data2[0]
-        #import ipdb; ipdb.set_trace()
 
     def test_convert_from_nwchem_to_gamess(self):
         #test 'internal' conversion from nwchem to gamess-us
         basis_name = "cc-pVTZ"
         el = EMSL_local(fmt="gamess-us", debug=False)
-        data = el.get_basis(basis_name, ["C"], convert_from="")
-        data2 = el.get_basis(basis_name, ["C"], convert_from="nwchem")
+        data = el.get_basis(basis_name, ["Cl"], convert_from="")
+        data2 = el.get_basis(basis_name, ["Cl"], convert_from="nwchem")
         self.assertTrue("BASIS SET reformatted" in data2[0])
-        self.assertTrue("CARBON" in data2[0])
+        self.assertTrue("CHLORINE" in data2[0])
+
+    def test_convert_from_nwchem_to_g94(self):
+        #test 'internal' conversion from nwchem to Gaussian 94
+        basis_name = "cc-pVTZ"
+        el = EMSL_local(fmt="g94", debug=False)
+        data = el.get_basis(basis_name, ["Cl"], convert_from="")
+        data2 = el.get_basis(basis_name, ["Cl"], convert_from="nwchem")
+        self.assertTrue("BASIS SET reformatted" in data2[0])
 
     def xtest_find_limits(self):
         c = conversion.Converter()

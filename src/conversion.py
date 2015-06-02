@@ -372,3 +372,66 @@ class Converter(object):
 
         formatted = "\n".join(basis_set_entries)
         return formatted
+
+    def format_one_g94(self, basis_name, basis_data, origin):
+        """Format one block of basis data and tag it with an
+        origin comment.
+
+        :param basis_name: name of the basis set that provided the data
+        :type basis_name : str
+        :param basis_data: a standard "tall" basis set entry
+        :type basis_data : BasisSetEntry
+        :param origin: where the data originally came from
+        :type origin : str
+        :return: a formatted basis data block for Gaussian 94 or compatible
+        :rtype : str
+        """
+
+        fns = []
+        fps = basis_data.functions_per_shell
+        contracted = []
+        for key, value in fps.items():
+            entry = "{}{}".format(value, key.lower())
+            contracted.append(entry)
+
+        fns.append("{}     0".format(basis_data.symbol))
+
+        reformatted = basis_data.reformat_functions()
+        for shell, functions in reformatted:
+            for outer in functions:
+                fns.append("{}   {}   1.0".format(shell, len(outer)))
+                for j, vals in enumerate(outer):
+                    col1 = "{:.7f}".format(vals[0])
+                    col2 = "{:.7f}".format(vals[1])
+                    try:
+                        col3 = "{:.7f}".format(vals[2])
+                        pad3 = " " * (15 - col3.index("."))
+                    except IndexError:
+                        col3 = ""
+                        pad3 = ""
+                    pad1 = " " * (7 - col1.index("."))
+                    pad2 = " " * (15 - col2.index("."))
+                    row = pad1 + col1 + pad2 + col2 + pad3 + col3
+                    fns.append(row)
+
+        c2 = "#BASIS SET reformatted: [{}]".format(",".join(contracted))
+        c3 = "#origin: {}".format(origin)
+
+        block = "\n".join([c2, c3] + fns)
+        return block
+
+    def wrap_converted_g94(self, basis_set_entries, spherical_or_cartesian):
+        """Wrap a list of converted basis set entries into a basis
+        set data section suitable for using in Gaussian 94 or compatible
+        format.
+
+        :param basis_set_entries: one or more BasisSetEntry values to wrap
+        :type basis_set_entries : list
+        :param spherical_or_cartesian: pure or cartesian form functions
+        :type spherical_or_cartesian : str
+        :return: formatted basis set data section
+        :rtype : str
+        """
+
+        formatted = "\n".join(["****"] + basis_set_entries + ["****"])
+        return formatted

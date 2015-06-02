@@ -91,7 +91,7 @@ class EMSL_local(object):
 
         :param fmt: format needing a db_path, e.g. "nwchem"
         :type fmt : str
-        :return: path to db
+        :return: path to sqlite db file
         :rtype : str
         """
 
@@ -454,9 +454,11 @@ class EMSL_local(object):
         c = conversion.Converter()
         el = EMSL_local(None, fmt="nwchem", debug=False)
         converters = {"nwchem" : c.format_one_nwchem,
-                      "gamess-us" : c.format_one_gamess_us}
+                      "gamess-us" : c.format_one_gamess_us,
+                      "g94" : c.format_one_g94}
         wrappers = {"nwchem" : c.wrap_converted_nwchem,
-                    "gamess-us" : c.wrap_converted_gamess_us}
+                    "gamess-us" : c.wrap_converted_gamess_us,
+                    "g94" : c.wrap_converted_g94}
 
         try:
             converter = converters[destination_format]
