@@ -200,7 +200,15 @@ class LocalTestCase(unittest.TestCase):
 
         names = el.get_available_basis_sets(allowed_basis_names=basis_names)
         self.assertEqual(expected, names)
- 
+
+    def test_get_basis_supplemented(self):
+        #test that basis set data gets auto-translated when there
+        #is no "native" version available but an .nwbas to convert
+        el = EMSL_local(fmt="g94")
+        elements = ["Li", "Cl"]
+        result = el.get_basis("g3mp2large", elements=elements)
+        self.assertTrue("BASIS SET reformatted" in result[0])
+
 
 def runSuite(cls, verbosity=2, name=None):
     """Run a unit test suite and return status code.

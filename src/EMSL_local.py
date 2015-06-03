@@ -526,6 +526,51 @@ class EMSL_local(object):
         transformed = wrapper(unpacked, basis_name)
         return transformed
 
+    def convert_from_nwchem_fs(self, basis_name, destination_format, elements=[]):
+        """Try to convert a named basis on the assumption that it is available
+        via supplemental file system storage.
+
+        TODO: fix this up to avoid redundancies with convert_from_nwchem
+
+        :param basis_name: name of the basis set
+        :type basis_name : str
+        :param destination_format: format to convert to
+        :type destination_format : str
+        :param elements: elements that need basis data
+        :type elements : list
+        :return: basis set data for one or more elements
+        :rtype : list
+        """
+
+        final = []
+        c = conversion.Converter()
+
+        converters = {"nwchem" : c.format_one_nwchem,
+                      "gamess-us" : c.format_one_gamess_us,
+                      "g94" : c.format_one_g94}
+        wrappers = {"nwchem" : c.wrap_converted_nwchem,
+                    "gamess-us" : c.wrap_converted_gamess_us,
+                    "g94" : c.wrap_converted_g94}
+
+        bs = self.get_available_basis_sets_fs(allowed_basis_names=[basis_name])
+
+        if bs:
+            converter = converters[self.fmt]
+            wrapper = wrappers[self.fmt]
+            flist = self.get_nwbas_files()
+            basfile = [x["file"] for x in flist if x["name"] == basis_name][0]
+            parsed = self.load_nwbas_file(basfile)
+            if not elements:
+                elements = [p.symbol for p in parsed]
+
+            selected = [p for p in parsed if p.symbol in elements]
+            origin = bs[0][1]
+            converted = [converter(basis_name, p, origin) for p in selected]
+            wrapped = wrapper(converted, selected[0].spherical_or_cartesian)
+            final = [wrapped]
+
+        return final
+
     def convert_from_nwchem(self, basis_name, destination_format, elts=[]):
         """Fetch basis set data from original NWChem representation and return
         it in standardized converted form appropriate to destination_format.
@@ -541,8 +586,9 @@ class EMSL_local(object):
         """
 
         completed = []
+        el = EMSL_local(fmt="nwchem", debug=False)
         c = conversion.Converter()
-        el = EMSL_local(None, fmt="nwchem", debug=False)
+
         converters = {"nwchem" : c.format_one_nwchem,
                       "gamess-us" : c.format_one_gamess_us,
                       "g94" : c.format_one_g94}
@@ -568,36 +614,37 @@ class EMSL_local(object):
         wrapped = wrapper(completed, parsed.spherical_or_cartesian)
         return [wrapped]
 
-    def get_basis(self, basis_name, elts=[], convert_from=""):
+    def get_basis(self, basis_name, elements=[], convert_from=""):
         """Get basis data for named basis set. If elts is empty, all elements
          in the named basis set will be returned. If convert_from is set,
          the basis set data will first be read in the convert_from format
          and transformed to the self.fmt for output.
 
+         If basis set data is not found in the matching native-format
+         database, it will be sought in the supplemental db/nwchem/*.nwbas
+         files and auto-converted if there is a match.
+
         :param basis_name: name of the basis set
         :type basis_name : str
-        :param elts: elements that need basis data
-        :type elts : list
+        :param elements: elements that need basis data
+        :type elements : list
         :param convert_from: optional format to first convert from
         :type convert_from : str
         :return: basis set data for one or more elements
         :rtype : list
         """
 
+        #only conversions from nwchem available right now
         if convert_from == "nwchem":
-            return self.convert_from_nwchem(basis_name, self.fmt, elts=elts)
-        elif convert_from == "gamess-us":
-            raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
-        elif convert_from == "g94":
-            raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
+            return self.convert_from_nwchem(basis_name, self.fmt, elts=elements)
         elif convert_from:
             raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
 
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
-        if elts:
-            cmd_ele = "AND " + " ".join(cond_sql_or("elt", elts))
+        if elements:
+            cmd_ele = "AND " + " ".join(cond_sql_or("elt", elements))
         else:
             cmd_ele = ""
 
@@ -608,6 +655,10 @@ class EMSL_local(object):
 
         l_data_raw = c.fetchall()
         conn.close()
+
+        #no results from db, so try supplemenal filesystem data
+        if not l_data_raw:
+            return self.convert_from_nwchem_fs(basis_name, self.fmt, elements=elements)
 
         l_data = self.process_raw_data(l_data_raw, basis_name)
         
