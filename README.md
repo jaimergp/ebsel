@@ -4,9 +4,9 @@ ebsel
 
 Create a local copy of the famous [EMSL Basis Set Exchange](https://bse.pnl.gov/bse/portal) and use it easily through the API.
 
-* Make a compact copy (~90 MB of Sqlite3 database files) of the EMSL Basis Set Exchange website.
-* __API for scripting__;
-* Quick local access without delay;
+* Make a compact copy (~90 MB of Sqlite3 database files) of the EMSL Basis Set Exchange website
+* __API for scripting__
+* Quick local access without delay
 * Only needs [Python](https://www.python.org/)
 
 ##Dependencies
