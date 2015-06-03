@@ -1,5 +1,6 @@
-ebsel (EMSL_Basis_Set_Exchange_Local)
+ebsel
 =============================
+(EMSL_Basis_Set_Exchange_Local)
 
 Create a local copy of the famous [EMSL Basis Set Exchange](https://bse.pnl.gov/bse/portal) and use it easily through the API.
 
