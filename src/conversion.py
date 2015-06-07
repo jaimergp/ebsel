@@ -26,6 +26,7 @@ class BasisSetEntry(object):
             self.name = basis_dict["element_name"]
             self.spherical_or_cartesian = basis_dict["spherical_or_cartesian"]
             self.functions = basis_dict["functions"]
+            self.scale_factor = basis_dict["scale_factor"]
 
         def reformat_functions(self):
             return self._reformat_functions(self.functions)
@@ -80,7 +81,22 @@ class BasisSetEntry(object):
 
                     ffl.append((shell, columns))
 
-            return ffl
+            #fuse together shells that share exponents
+            D = PrettyOrderedDict()
+            for shell, lists in ffl:
+                for outer in lists:
+                    exps = [k[0] for k in outer]
+                    key = tuple([shell] + exps)
+                    try:
+                        D[key].append(outer)
+                    except KeyError:
+                        D[key] = [outer]
+
+            fused = []
+            for k, v in D.items():
+                fused.append((k[0], v))
+
+            return fused
 
         @property
         def functions_per_shell(self):
@@ -148,10 +164,43 @@ class Converter(object):
             element = l[2].strip().upper()
             self.elements.append((symbol, element))
 
+    def numericize(self, line, numeric_only=False, force_float=False):
+        """Split a line of text by whitespace and try to convert all
+        numbers to numeric values. If force_float is True, all numbers
+        will be returned as floats, otherwise integers where appropriate.
+
+        :param line: input line of text
+        :type line : str
+        :param numeric_only: exclude unconverted fragments if True
+        :type numeric_only : bool
+        :param force_float: if True, use float for all numeric values (no ints)
+        :type force_float : bool
+        :return: mixed list of strings and floats
+        :rtype : list
+        """
+
+        converted = []
+        for piece in line.split():
+            try:
+                v = float(piece)
+                if not force_float:
+                    try:
+                        v = int(piece)
+                    except:
+                        pass
+            except ValueError:
+                v = piece
+
+            if type(v) == float or numeric_only == False:
+                converted.append(v)
+
+        return converted
+
+
     def get_element_symbol(self, atomic_number):
         """Get element symbol by atomic number.
 
-        :param atomic_number: atomic number of element, e.g. 3 for Li
+        :param atomic_nu_mber: atomic number of element, e.g. 3 for Li
         :type atomic_number : int
         :return: element's symbol
         :rtype : str
@@ -225,6 +274,7 @@ class Converter(object):
              "element_symbol" : "",
              "element_name" : "",
              "element_number" : 0,
+             "scale_factor" : 1.0,
              "functions" : []}
 
         for line in text.split("\n"):
@@ -265,6 +315,77 @@ class Converter(object):
                 d["element_symbol"] = element_symbol
                 d["element_number"] = atomic_number
                 d["element_name"] = self.get_element_name(atomic_number)
+                d["functions"].append((shell_type, []))
+
+        return BasisSetEntry(d)
+
+    def parse_one_g94(self, original_text):
+        """Parse a block of Gaussian 94 atomic orbital basis set data for
+        one element. N.B.: not for ECP data!
+
+        :param original_text: a text block of basis set data for one element
+        :type original_text : str
+        :return: parsed basis set data
+        :rtype : BasisSetEntry
+        """
+
+        #get first within-asterisks block, to strip away header
+        #and ignore ECP data that might be in a second block
+        text = original_text.split("****")[1]
+
+        d = {"spherical_or_cartesian" : "spherical",
+             "element_symbol" : "",
+             "element_name" : "",
+             "element_number" : 0,
+             "scale_factor" : 1.0,
+             "functions" : []}
+
+        if "cartesian" in text.lower():
+            d["spherical_or_cartesian"] = "cartesian"
+        elif "spherical" in text.lower():
+            d["spherical_or_cartesian"] = "spherical"
+
+        for line in text.split("\n"):
+            lower = line.lower()
+            numericized = self.numericize(line)
+            types = [type(n) for n in numericized]
+
+            #skip comments and blank lines
+            if not lower or lower[0] in ("!",):
+                pass
+
+            #this will be the element name header, like
+            #Cl     0
+            elif types in ([str, int], [unicode, int]):
+                element_symbol = numericized[0].title()
+                atomic_number = self.get_atomic_number(element_symbol)
+                d["element_symbol"] = element_symbol
+                d["element_number"] = atomic_number
+
+            #this will be a line of numerical values like
+            #    933.9000000              0.399612D-02
+            elif lower[0] in string.whitespace:
+                #Python doesn't understand notation like
+                #0.4137d-06
+                #but
+                #0.4137e-06
+                #works
+                lower = lower.replace("d", "e")
+                try:
+                    values = [float(j) for j in lower.split()]
+                except ValueError:
+                    import ipdb; ipdb.set_trace()
+                d["functions"][-1][1].append(values)
+
+            #this will be a line heading a group of coefficients
+            #S   6   1.00
+            else:
+                shell_type = numericized[0]
+                try:
+                    scale_factor = numericized[2]
+                except IndexError:
+                    import ipdb; ipdb.set_trace()
+                d["scale_factor"] = scale_factor
                 d["functions"].append((shell_type, []))
 
         return BasisSetEntry(d)
@@ -427,7 +548,8 @@ class Converter(object):
         reformatted = basis_data.reformat_functions()
         for shell, functions in reformatted:
             for outer in functions:
-                fns.append("{}   {}   1.0".format(shell, len(outer)))
+                fns.append("{}   {}   {:.1f}".format(shell, len(outer),
+                                                     basis_data.scale_factor))
                 for j, vals in enumerate(outer):
                     col1 = "{:.7f}".format(vals[0])
                     col2 = "{:.7f}".format(vals[1])

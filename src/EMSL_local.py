@@ -648,10 +648,11 @@ class EMSL_local(object):
         else:
             cmd_ele = ""
 
-        c.execute('''SELECT DISTINCT data from output_tab
+        query = """SELECT DISTINCT data from output_tab
                    WHERE name="{basis_name}" COLLATE NOCASE
-                   {cmd_ele}'''.format(basis_name=basis_name,
-                                       cmd_ele=cmd_ele))
+                   {cmd_ele}""".format(basis_name=basis_name,
+                                       cmd_ele=cmd_ele)
+        c.execute(query)
 
         l_data_raw = c.fetchall()
         conn.close()
