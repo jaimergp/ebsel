@@ -221,7 +221,7 @@ class EMSL_dump(object):
                 print(data)
             raise ValueError("No basis set data found while attempting to process {0} ({1})".format(name, description))
 
-        trimmed = data[begin+len(mark) : end-len(mark)].strip()
+        trimmed = data[begin+len(mark) : end].strip()
         chunks = []
         lines = []
 
@@ -291,7 +291,7 @@ class EMSL_dump(object):
                 print(data)
             return []
 
-        trimmed = data[begin+len(begin_marker) : end-len(end_marker)].strip()
+        trimmed = data[begin+len(begin_marker) : end].strip()
 
         chunks = []
         lines = []
@@ -330,7 +330,7 @@ class EMSL_dump(object):
         ecp_region = ""
         
         if ecp_begin > -1 and ecp_end > -1:
-            ecp_region = data[ecp_begin + len(ecp_begin_mark) : ecp_end - len(ecp_end_mark)].strip()
+            ecp_region = data[ecp_begin + len(ecp_begin_mark) : ecp_end].strip()
 
         #No ECP data, so return empty list
         else:
