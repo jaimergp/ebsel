@@ -40,9 +40,8 @@ def run_one_job(filename, qc_exe):
     os.system(cmd)
 
 def extract_one_log(filename):
-    logname = filename.replace(".com", ".log")
     try:
-        with open(logname) as infile:
+        with open(filename) as infile:
             data = infile.read()
     except IOError:
         print "IOERROR!"
@@ -62,9 +61,15 @@ def main(qc_exe):
         parsed[basis] = []
         for element in elements:
             job_file = write_one_job(basis, element)
-            run_one_job(job_file, qc_exe)
-            data = extract_one_log(job_file)
-            if "Atomic number out of range" not in data:
+            logname = job_file.replace(".com", ".log")
+            if not os.path.exists(logname):
+                run_one_job(job_file, qc_exe)
+            data = extract_one_log(logname)
+            symbol_error_1 = "Atomic number out of range"
+            symbol_error_2 = "Symbol not recognized"
+            if "syntax error" in data:
+                print "Syntax error in log -- misnamed basis set?"
+            elif symbol_error_1 not in data and symbol_error_2 not in data:
                 pbs = c.parse_multi_from_gaussian_log_file(data)[0]
                 parsed[basis].append(pbs)
 
@@ -75,8 +80,7 @@ def main(qc_exe):
             with open(destination, "w") as outfile:
                 outfile.write(combined)
 
-    os.system("rm Gau-*")
-
+    os.system("rm -f Gau-*")
 
 if __name__ == '__main__':
     qc_exe = sys.argv[1]

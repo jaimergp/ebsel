@@ -343,16 +343,20 @@ class EMSL_local(object):
 
         return parsed
 
-    def get_nwbas_files(self):
-        """Get available *.nwbas files for supplementing basis set data
+    def get_basis_files(self, fmt, extension):
+        """Get available basis set files for supplementing basis set data
         stored in sqlite. Also warn if extraneous files are present.
 
-        :return: *.nwbas file paths and names
+        :param fmt: format to load (nwchem or g94)
+        :type fmt : str
+        :param extension: file extension to look for
+        :type extension : str
+        :return: basis set file paths and names
         :rtype : list
         """
 
         db_root = os.path.dirname(os.path.dirname(__file__)) + "/db/"
-        for ignored in ["gamess-us", "g94"]:
+        for ignored in ["gamess-us"]:
             pattern = db_root + ignored + "/*"
             flist = glob.glob(pattern)
             for entry in sorted(flist):
@@ -360,14 +364,14 @@ class EMSL_local(object):
                     msg = "WARNING: found file {} -- no files in this directory are processed\n".format(entry)
                     sys.stderr.write(msg)
 
-        pattern = db_root + "nwchem/*"
+        pattern = db_root + "{}/*".format(fmt)
         flist = glob.glob(pattern)
         flist.sort()
         filtered = []
 
         for entry in flist:
-            if entry.endswith(".nwbas"):
-                name = os.path.basename(entry).split(".nwbas")[0]
+            if entry.endswith(extension):
+                name = os.path.basename(entry).split(extension)[0]
                 e = {"name" : name,
                      "file" : entry}
                 filtered.append(e)
@@ -395,7 +399,7 @@ class EMSL_local(object):
         names = []
         element_set = set([e.lower() for e in elements])
 
-        flist = self.get_nwbas_files()
+        flist = self.get_basis_files("nwchem", ".nwbas")
         for entry in sorted(flist):
             t = (entry["name"], "db/" + entry["file"].split("db/", 1)[-1])
             if entry["name"] in allowed_basis_names or not allowed_basis_names:
@@ -484,7 +488,7 @@ class EMSL_local(object):
         :rtype : list
         """
 
-        flist = self.get_nwbas_files()
+        flist = self.get_basis_files("nwchem", ".nwbas")
         filtered = [x for x in flist if x["name"] == basis_name]
         if filtered:
             parsed = self.load_nwbas_file(filtered[0]["file"])
@@ -526,52 +530,8 @@ class EMSL_local(object):
         transformed = wrapper(unpacked, basis_name)
         return transformed
 
-    def convert_from_nwchem_fs(self, basis_name, destination_format, elements=[]):
-        """Try to convert a named basis on the assumption that it is available
-        via supplemental file system storage.
-
-        TODO: fix this up to avoid redundancies with convert_from_nwchem
-
-        :param basis_name: name of the basis set
-        :type basis_name : str
-        :param destination_format: format to convert to
-        :type destination_format : str
-        :param elements: elements that need basis data
-        :type elements : list
-        :return: basis set data for one or more elements
-        :rtype : list
-        """
-
-        final = []
-        c = conversion.Converter()
-
-        converters = {"nwchem" : c.format_one_nwchem,
-                      "gamess-us" : c.format_one_gamess_us,
-                      "g94" : c.format_one_g94}
-        wrappers = {"nwchem" : c.wrap_converted_nwchem,
-                    "gamess-us" : c.wrap_converted_gamess_us,
-                    "g94" : c.wrap_converted_g94}
-
-        bs = self.get_available_basis_sets_fs(allowed_basis_names=[basis_name])
-
-        if bs:
-            converter = converters[self.fmt]
-            wrapper = wrappers[self.fmt]
-            flist = self.get_nwbas_files()
-            basfile = [x["file"] for x in flist if x["name"] == basis_name][0]
-            parsed = self.load_nwbas_file(basfile)
-            if not elements:
-                elements = [p.symbol for p in parsed]
-
-            selected = [p for p in parsed if p.symbol in elements]
-            origin = bs[0][1]
-            converted = [converter(p, origin) for p in selected]
-            wrapped = wrapper(converted, selected[0].spherical_or_cartesian)
-            final = [wrapped]
-
-        return final
-
-    def convert_from_nwchem(self, basis_name, destination_format, elts=[]):
+    def convert_from_nwchem(self, basis_name, destination_format, elements=[],
+                            bypass_db=False):
         """Fetch basis set data from original NWChem representation and return
         it in standardized converted form appropriate to destination_format.
 
@@ -579,8 +539,10 @@ class EMSL_local(object):
         :type basis_name : str
         :param destination_format: format to convert to
         :type destination_format : str
-        :param elts: elements that need basis data
-        :type elts : list
+        :param elements: elements that need basis data
+        :type elements : list
+        :param bypass_db: if True, look for data only on file system
+        :type bypass_db : bool
         :return: basis set data for one or more elements
         :rtype : list
         """
@@ -602,19 +564,39 @@ class EMSL_local(object):
         except KeyError:
             raise ValueError("No defined conversion for {}".format(destination_format))
 
-        if not elts:
-            elts = el.get_available_elements(basis_name)
+        if not bypass_db:
+            if not elements:
+                elements = el.get_available_elements(basis_name)
 
-        for element in elts:
-            basis = "\n".join(el.get_basis(basis_name, [element]))
-            parsed = c.parse_one_nwchem(basis)
-            converted = converter(parsed, "db/NWChem.db")
-            completed.append(converted)
+            for element in elements:
+                basis = "\n".join(el.get_basis(basis_name, [element]))
+                parsed = c.parse_one_nwchem(basis)
+                converted = converter(parsed, "db/NWChem.db")
+                completed.append(converted)
 
-        wrapped = wrapper(completed, parsed.spherical_or_cartesian)
+        #either no data was found in the database or we are deliberately
+        #bypassing the database to force use of basis data from file system
+        if not completed:
+            bs = self.get_available_basis_sets_fs(allowed_basis_names=[basis_name])
+
+            if bs:
+                flist = self.get_basis_files("nwchem", ".nwbas")
+                basfile = [x["file"] for x in flist if x["name"] == basis_name][0]
+                parsed = self.load_nwbas_file(basfile)
+                if not elements:
+                    elements = [p.symbol for p in parsed]
+
+                selected = [p for p in parsed if p.symbol in elements]
+                origin = bs[0][1]
+                converted = [converter(p, origin) for p in selected]
+                wrapped = wrapper(converted, selected[0].spherical_or_cartesian)
+
+        else:
+            wrapped = wrapper(completed, parsed.spherical_or_cartesian)
+
         return [wrapped]
 
-    def get_basis(self, basis_name, elements=[], convert_from=""):
+    def get_basis(self, basis_name, elements=[], convert_from="", bypass_db=False):
         """Get basis data for named basis set. If elts is empty, all elements
          in the named basis set will be returned. If convert_from is set,
          the basis set data will first be read in the convert_from format
@@ -622,7 +604,10 @@ class EMSL_local(object):
 
          If basis set data is not found in the matching native-format
          database, it will be sought in the supplemental db/nwchem/*.nwbas
-         files and auto-converted if there is a match.
+         files or db/g94/*.gbs files and auto-converted if there is a match.
+
+         The primary basis set databases can be bypassed, forcing data to load
+         from the file system basis entries, if bypass_db is set to True.
 
         :param basis_name: name of the basis set
         :type basis_name : str
@@ -630,38 +615,55 @@ class EMSL_local(object):
         :type elements : list
         :param convert_from: optional format to first convert from
         :type convert_from : str
+        :param bypass_db: if True, ignore data stored in sqlite3 database
+        :type bypass_db : bool
         :return: basis set data for one or more elements
         :rtype : list
         """
 
-        #only conversions from nwchem available right now
+        processed = []
+        #conversions from nwchem and g94 available presently
         if convert_from == "nwchem":
-            return self.convert_from_nwchem(basis_name, self.fmt, elts=elements)
+            return self.convert_from_nwchem(basis_name, self.fmt, elements=elements)
+        elif convert_from == "g94":
+            return self.convert_from_nwchem(basis_name, self.fmt, elements=elements)
         elif convert_from:
             raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
 
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
+        l_data_raw = []
 
-        if elements:
-            cmd_ele = "AND " + " ".join(cond_sql_or("elt", elements))
-        else:
-            cmd_ele = ""
+        if not bypass_db:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            if elements:
+                cmd_ele = "AND " + " ".join(cond_sql_or("elt", elements))
+            else:
+                cmd_ele = ""
 
-        query = """SELECT DISTINCT data from output_tab
-                   WHERE name="{basis_name}" COLLATE NOCASE
-                   {cmd_ele}""".format(basis_name=basis_name,
-                                       cmd_ele=cmd_ele)
-        c.execute(query)
+            query = """SELECT DISTINCT data from output_tab
+                       WHERE name="{basis_name}" COLLATE NOCASE
+                       {cmd_ele}""".format(basis_name=basis_name,
+                                           cmd_ele=cmd_ele)
+            c.execute(query)
 
-        l_data_raw = c.fetchall()
-        conn.close()
+            l_data_raw = c.fetchall()
+            conn.close()
+            if l_data_raw:
+                processed = self.process_raw_data(l_data_raw, basis_name)
 
         #no results from db, so try supplemenal filesystem data
         if not l_data_raw:
-            return self.convert_from_nwchem_fs(basis_name, self.fmt, elements=elements)
+            #convert from nwchem by default, also if it's explicitly chosen
+            if not convert_from or convert_from == "nwchem":
+                processed = self.convert_from_nwchem(basis_name, self.fmt,
+                                                     elements=elements,
+                                                     bypass_db=True)
 
-        l_data = self.process_raw_data(l_data_raw, basis_name)
+            #convert from g94 if explicitly chosen or nwchem fallback failed
+            if convert_from == "g94" or not processed:
+                fallback = self.convert_from_nwchem_fs(basis_name, self.fmt, elements=elements)
+
+        return processed
         
         return l_data
 

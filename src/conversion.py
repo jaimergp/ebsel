@@ -5,6 +5,7 @@
 from collections import OrderedDict
 import os
 import string
+import sys
 
 class PrettyOrderedDict(OrderedDict):
     def __str__(self):
@@ -29,7 +30,7 @@ class BasisSetEntry(object):
             self.scale_factor = basis_dict["scale_factor"]
 
         def __eq__(self, other):
-            """Compare two BasisSetEntries. Entries will compare as equal if
+            """Compare BasisSetEntries. Entries will compare as equal if
             they have the same shell structure and all the numeric data is
             equal to within 1 part per million.
 
@@ -345,6 +346,10 @@ class Converter(object):
         :rtype : list
         """
 
+        if "gfinput" not in text.lower():
+            msg = "WARNING: did not find gfinput keyword in data. This logged data may be unsuitable.\n"
+            sys.stderr.write(msg)
+
         #Spherical or cartesian functions?
         #(5D, 7F) is spherical
         #(6D, 10F) is cartesian
@@ -370,8 +375,22 @@ class Converter(object):
 
         atomnos = []
         dashcount = 0
-        begin_mark = "Number     Number      Type              X           Y           Z\n"
-        for line in text.split(begin_mark)[1].split("\n"):
+
+        #looking for this line (modulo white space) as marking just-before
+        #basis data
+        #"Number     Number      Type              X           Y           Z"
+        tlist = []
+        begun = False
+        for line in text.split("\n"):
+            pieces = line.split()
+            if "Number" in pieces and "Type" in pieces and "X" in pieces and "Y" in pieces and "Z" in pieces:
+                begun = True
+            elif begun:
+                tlist.append(line)
+
+        tblock = "\n".join(tlist)
+
+        for line in tblock.split("\n"):
             if "----" in line:
                 dashcount += 1
                 if dashcount == 2:
