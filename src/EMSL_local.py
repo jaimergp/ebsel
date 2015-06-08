@@ -578,10 +578,14 @@ class EMSL_local(object):
                     "g94" : c.wrap_converted_g94}
         dbnames = {"nwchem" : "db/NWChem.db",
                    "g94" : "db/Gaussian94.db"}
+        parsers = {"nwchem" : c.parse_one_nwchem,
+                   "g94" : c.parse_one_g94}
 
         try:
             converter = converters[destination_format]
             wrapper = wrappers[destination_format]
+            parser = parsers[fmt]
+            dbname = dbnames[fmt]
         except KeyError:
             raise ValueError("No defined conversion for {}".format(destination_format))
 
@@ -591,8 +595,8 @@ class EMSL_local(object):
 
             for element in elements:
                 basis = "\n".join(el.get_basis(basis_name, [element]))
-                parsed = c.parse_one_nwchem(basis)
-                converted = converter(parsed, dbnames[fmt])
+                parsed = parser(basis)
+                converted = converter(parsed, dbname)
                 completed.append(converted)
 
         #either no data was found in the database or we are deliberately
@@ -646,7 +650,8 @@ class EMSL_local(object):
         #conversions from nwchem and g94 available presently
         if convert_from in ("nwchem", "g94"):
             return self.convert_from_format(convert_from, basis_name, self.fmt,
-                                            elements=elements)
+                                            elements=elements,
+                                            bypass_db=bypass_db)
         elif convert_from:
             raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
 

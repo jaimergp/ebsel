@@ -127,6 +127,18 @@ class ConversionTestCase(unittest.TestCase):
         data2 = el.get_basis(basis_name, ["Cl"], convert_from="nwchem")
         self.assertTrue("BASIS SET reformatted" in data2[0])
 
+    def test_convert_from_g94_to_nwchem(self):
+        #convert a g94 basis from the file system to nwchem form
+        basis_name = "6-311G"
+        el = EMSL_local(fmt="nwchem")
+
+        data = el.get_basis(basis_name, ["Cl"], convert_from="g94",
+                            bypass_db=True)
+        self.assertTrue("BASIS SET reformatted" in data[0])
+        self.assertTrue("origin: db/g94/6-311G.gbs" in data[0])
+
+
+
     def test_parse_multi_from_gaussian_log(self):
         #test extraction of one or more basis set entries
         #from a gaussian log file and subsequent transformation
