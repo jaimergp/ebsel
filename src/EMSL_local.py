@@ -329,7 +329,7 @@ class EMSL_local(object):
         return sections
 
     def load_basis_file(self, fmt, file_name):
-        """Load and parse a single nwbas supplemental basis data
+        """Load and parse a single supplemental basis data
         set file.
 
         :param file_name: name of file to load
@@ -505,7 +505,7 @@ class EMSL_local(object):
         :rtype : list
         """
 
-        flist = self.get_basis_files("nwchem")
+        flist = self.get_basis_files(fmt)
         filtered = [x for x in flist if x["name"] == basis_name]
         if filtered:
             parsed = self.load_basis_file(fmt, filtered[0]["file"])
@@ -524,13 +524,14 @@ class EMSL_local(object):
                 "name_us": basis_name})
 
         data = c.fetchall()
-
         data = [str(i[0]) for i in data]
-
         conn.close()
 
         if not data:
-            data = self.get_available_elements_fs(self.fmt, basis_name)
+            for fmt in ["nwchem", "g94"]:
+                data = self.get_available_elements_fs(fmt, basis_name)
+                if data:
+                    break
         return data
 
     def process_raw_data(self, l_data_raw, basis_name):
@@ -547,11 +548,12 @@ class EMSL_local(object):
         transformed = wrapper(unpacked, basis_name)
         return transformed
 
-    def convert_from_nwchem(self, basis_name, destination_format, elements=[],
-                            bypass_db=False):
-        """Fetch basis set data from original NWChem representation and return
+    def convert_from_format(self, fmt, basis_name, destination_format,
+                            elements=[], bypass_db=False):
+        """Fetch basis set data from original specified format and return
         it in standardized converted form appropriate to destination_format.
 
+        :param fmt: format to load, nwchem or g94
         :param basis_name: name of the basis set
         :type basis_name : str
         :param destination_format: format to convert to
@@ -565,7 +567,7 @@ class EMSL_local(object):
         """
 
         completed = []
-        el = EMSL_local(fmt="nwchem", debug=False)
+        el = EMSL_local(fmt=fmt, debug=False)
         c = conversion.Converter()
 
         converters = {"nwchem" : c.format_one_nwchem,
@@ -574,6 +576,8 @@ class EMSL_local(object):
         wrappers = {"nwchem" : c.wrap_converted_nwchem,
                     "gamess-us" : c.wrap_converted_gamess_us,
                     "g94" : c.wrap_converted_g94}
+        dbnames = {"nwchem" : "db/NWChem.db",
+                   "g94" : "db/Gaussian94.db"}
 
         try:
             converter = converters[destination_format]
@@ -588,18 +592,18 @@ class EMSL_local(object):
             for element in elements:
                 basis = "\n".join(el.get_basis(basis_name, [element]))
                 parsed = c.parse_one_nwchem(basis)
-                converted = converter(parsed, "db/NWChem.db")
+                converted = converter(parsed, dbnames[fmt])
                 completed.append(converted)
 
         #either no data was found in the database or we are deliberately
         #bypassing the database to force use of basis data from file system
         if not completed:
-            bs = self.get_available_basis_sets_fs("nwchem", allowed_basis_names=[basis_name])
+            bs = self.get_available_basis_sets_fs(fmt, allowed_basis_names=[basis_name])
 
             if bs:
-                flist = self.get_basis_files("nwchem")
+                flist = self.get_basis_files(fmt)
                 basfile = [x["file"] for x in flist if x["name"] == basis_name][0]
-                parsed = self.load_basis_file("nwchem", basfile)
+                parsed = self.load_basis_file(fmt, basfile)
                 if not elements:
                     elements = [p.symbol for p in parsed]
 
@@ -640,10 +644,9 @@ class EMSL_local(object):
 
         processed = []
         #conversions from nwchem and g94 available presently
-        if convert_from == "nwchem":
-            return self.convert_from_nwchem(basis_name, self.fmt, elements=elements)
-        elif convert_from == "g94":
-            return self.convert_from_nwchem(basis_name, self.fmt, elements=elements)
+        if convert_from in ("nwchem", "g94"):
+            return self.convert_from_format(convert_from, basis_name, self.fmt,
+                                            elements=elements)
         elif convert_from:
             raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
 
@@ -672,13 +675,14 @@ class EMSL_local(object):
         if not l_data_raw:
             #convert from nwchem by default, also if it's explicitly chosen
             if not convert_from or convert_from == "nwchem":
-                processed = self.convert_from_nwchem(basis_name, self.fmt,
+                processed = self.convert_from_format("nwchem", basis_name,
+                                                     self.fmt,
                                                      elements=elements,
                                                      bypass_db=True)
 
             #convert from g94 if explicitly chosen or nwchem fallback failed
             if convert_from == "g94" or not processed:
-                fallback = self.convert_from_nwchem_fs(basis_name, self.fmt, elements=elements)
+                processed = self.convert_from_nwchem_fs("g94", basis_name, self.fmt, elements=elements)
 
         return processed
         
