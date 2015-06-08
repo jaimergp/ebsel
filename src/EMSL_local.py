@@ -565,7 +565,7 @@ class EMSL_local(object):
 
             selected = [p for p in parsed if p.symbol in elements]
             origin = bs[0][1]
-            converted = [converter(basis_name, p, origin) for p in selected]
+            converted = [converter(p, origin) for p in selected]
             wrapped = wrapper(converted, selected[0].spherical_or_cartesian)
             final = [wrapped]
 
@@ -608,7 +608,7 @@ class EMSL_local(object):
         for element in elts:
             basis = "\n".join(el.get_basis(basis_name, [element]))
             parsed = c.parse_one_nwchem(basis)
-            converted = converter(basis_name, parsed, "db/NWChem.db")
+            converted = converter(parsed, "db/NWChem.db")
             completed.append(converted)
 
         wrapped = wrapper(completed, parsed.spherical_or_cartesian)

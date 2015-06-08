@@ -28,6 +28,53 @@ class BasisSetEntry(object):
             self.functions = basis_dict["functions"]
             self.scale_factor = basis_dict["scale_factor"]
 
+        def __eq__(self, other):
+            """Compare two BasisSetEntries. Entries will compare as equal if
+            they have the same shell structure and all the numeric data is
+            equal to within 1 part per million.
+
+            Individual shell entries to be compared look like
+            ('S', [[71.61683735, 0.1543289673], [13.04509632, 0.5353281423], [3.53051216, 0.4446345422]])
+            ('S', [[71.6168373, 0.154329], [13.0450963, 0.5353281], [3.5305122, 0.4446345]])
+
+            :param other: other BSE to compare to
+            :type other : BasisSetEntry
+            :return: True if BSEs are equal, else False
+            :rtype : bool
+            """
+
+            max_deviation = 1.0 / 1000000
+            upper = 1.0 + max_deviation
+            lower = 1.0 - max_deviation
+
+            equal = True
+            if repr(self) != repr(other):
+                equal = False
+
+            try:
+                if len(self.functions) == len(other.functions):
+                    for j in range(len(self.functions)):
+                        f1 = self.functions[j][1]
+                        f2 = other.functions[j][1]
+                        for k in range(len(f1)):
+                            p1 = f1[k]
+                            p2 = f2[k]
+                            for m in range(len(p1)):
+                                ratio = p1[m] / p2[m]
+                                if ratio > upper or ratio < lower:
+                                    equal = False
+            except IndexError:
+                equal = False
+
+            return equal
+
+        def __ne__(self, other):
+            """Inequality comparison. This is just the logical inverse of equality.
+            """
+
+            return not (self == other)
+
+
         def reformat_functions(self):
             return self._reformat_functions(self.functions)
 
@@ -234,7 +281,8 @@ class Converter(object):
 
     def parse_multi_nwchem(self, text):
         """Parse a block of NWChem atomic orbital basis set data potentially
-        containing multiple elements. N.B.: not for ECP data!
+        containing multiple elements.
+        N.B.: not for ECP data!
 
         :param text: a text block of basis set data for one or more elements
         :type text : str
@@ -259,6 +307,188 @@ class Converter(object):
         rejoined = ["\n".join(c) for c in chunks]
         parsed = [self.parse_one_nwchem(r) for r in rejoined]
         return parsed
+
+    def parse_multi_g94(self, text):
+        """Parse a block of Gaussian 94 format basis set data, as used by,
+        Psi4, potentially containing multiple elements.
+        N.B.: not for ECP data!
+
+        :param text: a text block of basis set data for one or more elements
+        :type text : str
+        :return: parsed basis set data
+        :rtype : list
+        """
+
+        lower = text.lower()
+        spherical_or_cartesian = ""
+        if "cartesian" in lower:
+            spherical_or_cartesian = "cartesian"
+        elif "spherical" in lower:
+            spherical_or_cartesian = "spherical"
+
+
+        sections = text.strip().split("****")
+        parsed = [self.parse_one_g94(s) for s in sections]
+        filtered = [p for p in parsed if len(p.functions) > 0]
+        if spherical_or_cartesian:
+            for f in filtered:
+                f.spherical_or_cartesian = spherical_or_cartesian
+        return filtered
+
+    def xparse_multi_from_gaussian_log_file(self, text):
+        """Parse basis set data as logged by gfinput, from a Gaussian log
+        file.
+
+        :param text: the contents of a log file
+        :type text : str
+        :return: parsed basis set data
+        :rtype : list
+        """
+
+        #Spherical or cartesian functions?
+        #(5D, 7F) is spherical
+        #(6D, 10F) is cartesian
+        #(6D, 7F) is ???
+        #(5D, 10F) is ???
+        #treat cartesianness as not-sphericalness
+        if "(5D, 7F)" in text:
+            spherical_or_cartesian = "spherical"
+        else:
+            spherical_or_cartesian = "cartesian"
+
+        #get atomic numbers from data like this:
+        #---------------------------------------------------------------------
+        #Center     Atomic     Atomic              Coordinates (Angstroms)
+        #Number     Number      Type              X           Y           Z
+        #---------------------------------------------------------------------
+        #    1          6             0        0.000000    0.000000    0.000000
+        #    2          1             0        0.000000    0.000000    1.083346
+        #    3          1             0        1.021388    0.000000   -0.361115
+        #    4          1             0       -0.510694    0.884548   -0.361115
+        #    5          1             0       -0.510694   -0.884548   -0.361115
+        #---------------------------------------------------------------------
+
+        atomnos = []
+        dashcount = 0
+        begin_mark = "Number     Number      Type              X           Y           Z\n"
+        for line in text.split(begin_mark)[1].split("\n"):
+            if "----" in line:
+                dashcount += 1
+                if dashcount == 2:
+                    break
+            else:
+                numbers = self.numericize(line)
+                atomnos.append(numbers[1])
+
+        #get basis set data starting after
+        # AO basis set in the form of general basis input...
+        #and ending by
+        # There are     N symmetry adapted...
+
+        begin_mark = "basis set in the form of general basis input"
+        end_mark = "symmetry adapted"
+        after = text.split(begin_mark)[1].split(end_mark)[0]
+        basis_sections = after.split("****\n")[:-1]
+        bs = after.rsplit("****\n", 1)
+        import ipdb; ipdb.set_trace()
+
+        #there will be a bit of leftover junk in basis_section 0, to be cleaned
+        idx = basis_sections[0].find(" 1 0")
+        basis_sections[0] = basis_sections[0][idx:]
+
+        parsed = [self.parse_one_g94(p) for p in basis_sections]
+        uniques = []
+        seen = set()
+        #now build a list of *unique* parsed basis data in atomic order
+        for number in range(1, 106):
+            if number in atomnos and number not in seen:
+                seen.add(number)
+                j = atomnos.index(number)
+                bsd = parsed[j]
+                bsd.symbol = self.elements[number][0]
+                atomic_number = self.get_atomic_number(bsd.symbol)
+                bsd.number = atomic_number
+                bsd.spherical_or_cartesian = spherical_or_cartesian
+                uniques.append(bsd)
+
+        return uniques
+
+    def parse_multi_from_gaussian_log_file(self, text):
+        """Parse basis set data as logged by gfinput, from a Gaussian log
+        file.
+
+        :param text: the contents of a log file
+        :type text : str
+        :return: parsed basis set data
+        :rtype : list
+        """
+
+        #Spherical or cartesian functions?
+        #(5D, 7F) is spherical
+        #(6D, 10F) is cartesian
+        #(6D, 7F) is ???
+        #(5D, 10F) is ???
+        #treat cartesianness as not-sphericalness
+        if "(5D, 7F)" in text:
+            spherical_or_cartesian = "spherical"
+        else:
+            spherical_or_cartesian = "cartesian"
+
+        #get atomic numbers from data like this:
+        #---------------------------------------------------------------------
+        #Center     Atomic     Atomic              Coordinates (Angstroms)
+        #Number     Number      Type              X           Y           Z
+        #---------------------------------------------------------------------
+        #    1          6             0        0.000000    0.000000    0.000000
+        #    2          1             0        0.000000    0.000000    1.083346
+        #    3          1             0        1.021388    0.000000   -0.361115
+        #    4          1             0       -0.510694    0.884548   -0.361115
+        #    5          1             0       -0.510694   -0.884548   -0.361115
+        #---------------------------------------------------------------------
+
+        atomnos = []
+        dashcount = 0
+        begin_mark = "Number     Number      Type              X           Y           Z\n"
+        for line in text.split(begin_mark)[1].split("\n"):
+            if "----" in line:
+                dashcount += 1
+                if dashcount == 2:
+                    break
+            else:
+                numbers = self.numericize(line)
+                atomnos.append(numbers[1])
+
+        #get basis set data starting after
+        # AO basis set in the form of general basis input...
+        #and ending by
+        # There are     N symmetry adapted...
+
+        begin_mark = "basis set in the form of general basis input"
+        end_mark = "symmetry adapted"
+        after = text.split(begin_mark)[1].split(end_mark)[0]
+        bs = after.rsplit("****\n", 1)[0]
+
+        #there will be a bit of leftover junk in basis_section 0, to be cleaned
+        idx = bs.find(" 1 0")
+        bs = bs[idx:]
+
+        parsed = self.parse_multi_g94(bs)
+        uniques = []
+        seen = set()
+        #now build a list of *unique* parsed basis data in atomic order
+        for number in range(1, 106):
+            if number in atomnos and number not in seen:
+                seen.add(number)
+                j = atomnos.index(number)
+                bsd = parsed[j]
+                bsd.symbol = self.elements[number][0]
+                atomic_number = self.get_atomic_number(bsd.symbol)
+                bsd.number = atomic_number
+                bsd.spherical_or_cartesian = spherical_or_cartesian
+                uniques.append(bsd)
+
+        return uniques
+
 
     def parse_one_nwchem(self, text):
         """Parse a block of NWChem atomic orbital basis set data for
@@ -331,7 +561,10 @@ class Converter(object):
 
         #get first within-asterisks block, to strip away header
         #and ignore ECP data that might be in a second block
-        text = original_text.split("****")[1]
+        if "****" in original_text:
+            text = original_text.split("****")[1]
+        else:
+            text = original_text[:]
 
         d = {"spherical_or_cartesian" : "spherical",
              "element_symbol" : "",
@@ -350,32 +583,44 @@ class Converter(object):
             numericized = self.numericize(line)
             types = [type(n) for n in numericized]
 
+            #need to have an alternate version where all
+            # 0.7161683735d+02 etc
+            #become
+            #0.7161683735e+02
+            #so we can see if a line would be all-numeric after replacement
+
+            numeric_replaced = self.numericize(lower.replace('d', 'e'))
+            nr_types = [type(n) for n in numeric_replaced]
+
             #skip comments and blank lines
-            if not lower or lower[0] in ("!",):
+            if not lower.strip() or lower[0] in ("!",):
                 pass
 
             #this will be the element name header, like
             #Cl     0
-            elif types in ([str, int], [unicode, int]):
-                element_symbol = numericized[0].title()
-                atomic_number = self.get_atomic_number(element_symbol)
-                d["element_symbol"] = element_symbol
-                d["element_number"] = atomic_number
-
-            #this will be a line of numerical values like
-            #    933.9000000              0.399612D-02
-            elif lower[0] in string.whitespace:
-                #Python doesn't understand notation like
-                #0.4137d-06
-                #but
-                #0.4137e-06
-                #works
-                lower = lower.replace("d", "e")
+            #can also have an integer instead of symbol with gfprint, e.g.
+            #1 0
+            elif types in ([str, int], [unicode, int], [int, int]):
                 try:
-                    values = [float(j) for j in lower.split()]
-                except ValueError:
-                    import ipdb; ipdb.set_trace()
-                d["functions"][-1][1].append(values)
+                    element_symbol = numericized[0].title()
+                    atomic_number = self.get_atomic_number(element_symbol)
+                    d["element_symbol"] = element_symbol
+                    d["element_number"] = atomic_number
+                except AttributeError:
+                    #this was a section from gfprint and we can't actually
+                    #figure out the element here
+                    pass
+
+            #this will be a line of all numerical values like
+            #    933.9000000              0.399612e0-02
+            elif nr_types == [float] * len(types):
+                d["functions"][-1][1].append(numeric_replaced)
+
+            #could be single string, "cartesian" or "spherical" spec
+            elif nr_types == [str]:
+                if numericized[0].lower() not in ("spherical", "cartesian"):
+                    msg = "WARNING: unknown directive or data {}\n".format(numericized)
+                    sys.stderr.write(msg)
 
             #this will be a line heading a group of coefficients
             #S   6   1.00
@@ -390,12 +635,31 @@ class Converter(object):
 
         return BasisSetEntry(d)
 
-    def format_one_nwchem(self, basis_name, basis_data, origin):
+    def wrap_g94_to_gbs(self, basis_list, origin):
+        """Ensure that data from parse_multi_from_gaussian_log_file is
+        in normalized format and joined into a form suitable for .gbs
+        basis files as used by Psi4.
+
+        :param basis_list: parsed basis set data list
+        :type basis_list : list
+        :param origin:
+        :return: .gbs-form basis set data
+        :rtype : str
+        """
+
+        z = [self.format_one_g94(x, origin) for x in basis_list]
+        text = self.wrap_converted_g94(z, basis_list[0].spherical_or_cartesian)
+        text = text.replace("#", "!")
+        text = text.replace("!BASIS", "****\n!BASIS")
+        text = text.replace("****\n****\n", "****\n")
+        soc_header = "{}\n".format(basis_list[0].spherical_or_cartesian)
+        final = soc_header + text
+        return final
+
+    def format_one_nwchem(self, basis_data, origin):
         """Format one block of basis data and tag it with an
         origin comment.
 
-        :param basis_name: name of the basis set that provided the data
-        :type basis_name : str
         :param basis_data: a standard "tall" basis set entry
         :type basis_data : BasisSetEntry
         :param origin: where the data originally came from
@@ -456,12 +720,10 @@ class Converter(object):
 
         return formatted
 
-    def format_one_gamess_us(self, basis_name, basis_data, origin):
+    def format_one_gamess_us(self, basis_data, origin):
         """Format one block of basis data and tag it with an
         origin comment.
 
-        :param basis_name: name of the basis set that provided the data
-        :type basis_name : str
         :param basis_data: a standard "tall" basis set entry
         :type basis_data : BasisSetEntry
         :param origin: where the data originally came from
@@ -522,12 +784,10 @@ class Converter(object):
         formatted = "\n".join(basis_set_entries)
         return formatted
 
-    def format_one_g94(self, basis_name, basis_data, origin):
+    def format_one_g94(self, basis_data, origin):
         """Format one block of basis data and tag it with an
         origin comment.
 
-        :param basis_name: name of the basis set that provided the data
-        :type basis_name : str
         :param basis_data: a standard "tall" basis set entry
         :type basis_data : BasisSetEntry
         :param origin: where the data originally came from

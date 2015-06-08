@@ -127,6 +127,23 @@ class ConversionTestCase(unittest.TestCase):
         data2 = el.get_basis(basis_name, ["Cl"], convert_from="nwchem")
         self.assertTrue("BASIS SET reformatted" in data2[0])
 
+    def test_parse_multi_from_gaussian_log(self):
+        #test extraction of one or more basis set entries
+        #from a gaussian log file and subsequent transformation
+        with open("tests/samples/test01-g03.log") as infile:
+            data = infile.read()
+
+        c = conversion.Converter()
+        parsed = c.parse_multi_from_gaussian_log_file(data)
+        expected = "[<H cartesian {'S' : 1}>, <C cartesian {'S' : 1, 'SP' : 2}>]"
+        self.assertEqual(expected, str(parsed))
+        rewrapped = c.wrap_g94_to_gbs(parsed, "logfile")
+
+        #round trip conversion test
+        parsed2 = c.parse_multi_g94(rewrapped)
+        for j in range(len(parsed)):
+            self.assertEqual(parsed[j], parsed2[j])
+
     def xtest_find_limits(self):
         c = conversion.Converter()
         counts = []
