@@ -127,7 +127,7 @@ class LocalTestCase(unittest.TestCase):
         #the file system
         el = EMSL_local(fmt="nwchem")
         expected = [("g3mp2large", "db/nwchem/g3mp2large.nwbas")]
-        names = el.get_available_basis_sets_fs()
+        names = el.get_available_basis_sets_fs("nwchem")
         self.assertEqual(expected, names)
 
     def test_get_available_elements_fs(self):
@@ -138,7 +138,7 @@ class LocalTestCase(unittest.TestCase):
                     'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca',
                     'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr']
 
-        names = el.get_available_elements_fs("g3mp2large")
+        names = el.get_available_elements_fs("nwchem", "g3mp2large")
         self.assertEqual(expected, names)
 
     def test_get_available_elements(self):
@@ -169,7 +169,7 @@ class LocalTestCase(unittest.TestCase):
         el = EMSL_local(fmt="nwchem")
         expected = []
         basis_names = ["g3mp2gigantic"]
-        names = el.get_available_basis_sets_fs(allowed_basis_names=basis_names)
+        names = el.get_available_basis_sets_fs("nwchem", allowed_basis_names=basis_names)
         self.assertEqual(expected, names)
 
     def test_get_available_basis_sets_fs_element_filter(self):
@@ -183,10 +183,10 @@ class LocalTestCase(unittest.TestCase):
 
         #g3mp2large has krypton parameters but not xenon, so second retrieval
         #should produce nothing
-        names1 = el.get_available_basis_sets_fs(elements=elements1)
+        names1 = el.get_available_basis_sets_fs("nwchem", elements=elements1)
         self.assertEqual(expected1, names1)
 
-        names2 = el.get_available_basis_sets_fs(elements=elements2)
+        names2 = el.get_available_basis_sets_fs("nwchem", elements=elements2)
         self.assertEqual(expected2, names2)
 
     def test_get_available_basis_sets_supplemented(self):

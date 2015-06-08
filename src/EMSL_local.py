@@ -69,11 +69,12 @@ def cond_sql_or(table_name, l_value):
 
 class EMSL_local(object):
     def __init__(self, db_path=None, fmt="gamess-us", debug=True):
+        self.fmt = fmt
         if db_path is None:
             db_path = self.db_from_format(fmt)
 
         self.db_path = db_path
-        self.fmt = fmt
+
         self.shells = "S P D F G H I K L M".split()
         #Per-format functions to check maximum angular momentum
         self.am_checkers = {"gamess-us" : self.check_gamess_us,
@@ -107,7 +108,7 @@ class EMSL_local(object):
             sys.stderr.write(msg)
             sys.exit(1)
 
-        db_path, db_path_changed = checkSQLite3(db_path, format)
+        db_path, db_path_changed = checkSQLite3(db_path, fmt)
         return db_path
 
     def check_gamess_us(self, basis_blocks):
@@ -327,33 +328,44 @@ class EMSL_local(object):
 
         return sections
 
-    def load_nwbas_file(self, file_name):
+    def load_basis_file(self, fmt, file_name):
         """Load and parse a single nwbas supplemental basis data
         set file.
 
         :param file_name: name of file to load
         :type file_name : str
+        :param fmt: format to load, nwchem or g94
         :return: parsed BasisSetEntry list
         :rtype : list
         """
         c = conversion.Converter()
+        parser_map = {"nwchem" : c.parse_multi_nwchem,
+                      "g94" : c.parse_multi_g94}
+
         with open(file_name) as infile:
             file_data = infile.read()
-        parsed = c.parse_multi_nwchem(file_data)
+        parsefn = parser_map[fmt]
+        parsed = parsefn(file_data)
 
         return parsed
 
-    def get_basis_files(self, fmt, extension):
+    def get_basis_files(self, fmt):
         """Get available basis set files for supplementing basis set data
         stored in sqlite. Also warn if extraneous files are present.
 
-        :param fmt: format to load (nwchem or g94)
+        :param fmt: format to load, nwchem or g94
         :type fmt : str
-        :param extension: file extension to look for
-        :type extension : str
         :return: basis set file paths and names
         :rtype : list
         """
+
+        extensions = {"nwchem" : ".nwbas",
+                      "g94" : ".gbs",
+                      "gamess-us" : ""}
+
+        extension = extensions[fmt]
+        if not extension:
+            return []
 
         db_root = os.path.dirname(os.path.dirname(__file__)) + "/db/"
         for ignored in ["gamess-us"]:
@@ -381,25 +393,28 @@ class EMSL_local(object):
 
         return filtered
 
-    def get_available_basis_sets_fs(self, elements=[], allowed_basis_names=[]):
+    def get_available_basis_sets_fs(self, fmt, elements=[], allowed_basis_names=[]):
         """Return all the basis set names PRESENT ON THE FILE SYSTEM that
          contain the specified elements. This function looks at the
-         supplementary db/nwchem/*.nwbas files to find matching basis set
-         data.
+         supplementary db/nwchem/*.nwbas or db/g94/*.gbs files to find
+         matching basis set data.
 
          If elements is empty, just get all basis set names.
          If allowed_basis_names is set, only accept results with names in
          allowed_basis_names.
 
+        :param fmt: format to try, nwchem or g94
+        :type fmt : str
         :param elements: optional element symbols to match
         :type elements : list
         :param allowed_basis_names: optional name-filter for basis set names
         :type allowed_basis_names : list
         """
+
         names = []
         element_set = set([e.lower() for e in elements])
 
-        flist = self.get_basis_files("nwchem", ".nwbas")
+        flist = self.get_basis_files(fmt)
         for entry in sorted(flist):
             t = (entry["name"], "db/" + entry["file"].split("db/", 1)[-1])
             if entry["name"] in allowed_basis_names or not allowed_basis_names:
@@ -410,7 +425,7 @@ class EMSL_local(object):
                 # basis set data and make sure that all requested elements
                 # are present
                 else:
-                    parsed = self.load_nwbas_file(entry["file"])
+                    parsed = self.load_basis_file(fmt, entry["file"])
                     parsed_set = set([p.symbol.lower() for p in parsed])
                     if element_set.issubset(parsed_set):
                         names.append(t)
@@ -473,25 +488,27 @@ class EMSL_local(object):
         final = [i[:] for i in info]
 
         #look for additional basis set data from the file system
-        extra = self.get_available_basis_sets_fs(elements=elements,
+        extra = self.get_available_basis_sets_fs(self.fmt, elements=elements,
                                                  allowed_basis_names=allowed_basis_names)
 
         return final + extra
 
-    def get_available_elements_fs(self, basis_name):
+    def get_available_elements_fs(self, fmt, basis_name):
         """Get the available elements from a basis set that is stored
         on the file system.
 
+        :param fmt: format to load, nwchem or g94
+        :type fmt : str
         :param basis_name: name of basis set
         :type basis_name : str
         :return: element symbols
         :rtype : list
         """
 
-        flist = self.get_basis_files("nwchem", ".nwbas")
+        flist = self.get_basis_files("nwchem")
         filtered = [x for x in flist if x["name"] == basis_name]
         if filtered:
-            parsed = self.load_nwbas_file(filtered[0]["file"])
+            parsed = self.load_basis_file(fmt, filtered[0]["file"])
             elements = [p.symbol for p in parsed]
         else:
             elements = []
@@ -513,7 +530,7 @@ class EMSL_local(object):
         conn.close()
 
         if not data:
-            data = self.get_available_elements_fs(basis_name)
+            data = self.get_available_elements_fs(self.fmt, basis_name)
         return data
 
     def process_raw_data(self, l_data_raw, basis_name):
@@ -577,12 +594,12 @@ class EMSL_local(object):
         #either no data was found in the database or we are deliberately
         #bypassing the database to force use of basis data from file system
         if not completed:
-            bs = self.get_available_basis_sets_fs(allowed_basis_names=[basis_name])
+            bs = self.get_available_basis_sets_fs("nwchem", allowed_basis_names=[basis_name])
 
             if bs:
-                flist = self.get_basis_files("nwchem", ".nwbas")
+                flist = self.get_basis_files("nwchem")
                 basfile = [x["file"] for x in flist if x["name"] == basis_name][0]
-                parsed = self.load_nwbas_file(basfile)
+                parsed = self.load_basis_file("nwchem", basfile)
                 if not elements:
                     elements = [p.symbol for p in parsed]
 
