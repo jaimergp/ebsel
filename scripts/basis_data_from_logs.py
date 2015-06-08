@@ -52,15 +52,38 @@ def extract_one_log(filename):
     return data
 
 def main(qc_exe):
+    failures = []
     if not os.path.exists(workdir):
         os.makedirs(workdir)
     c = conversion.Converter()
 
     elements = [e[0] for e in c.elements[1:106]]
+
+    #dunning basis sets plus "calendar" variants
     dunnings = ["cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z", "cc-pV6Z"]
+    calendars = []
+    for month in ["apr", "may", "jun", "jul", "aug"]:
+        for d in dunnings:
+            bsname = "{}-{}".format(month, d)
+            calendars.append(bsname)
+
+    #ugbs basis set series
+    ugbs = ["UGBS"]
+    for n in [1, 2, 3]:
+        for code in ["P", "V", "O"]:
+            bsname = "UGBS{}{}".format(n, code)
+            ugbs.append(bsname)
 
     basis_names = ["STO-3G", "3-21G", "4-31G", "6-21G", "6-31G", "6-31G*",
-                   "6-31G(d')", "6-31G(d',p')", "6-311G", "6-311+G"]
+                   "6-31G(d')", "6-31G(d',p')", "6-311G", "6-311+G",
+                   "Def2SV", "Def2SVP", "Def2SVPP", "Def2TZV", "Def2TZVP",
+                   "Def2TZVPP", "Def2QZV", "Def2QZVP", "Def2QZVPP", "QZVP",
+                   "EPR-II", "EPR-III", "MTSmall", "DGDZVP", "DGDZVP2",
+                   "DGTZVP", "CBSB7"]
+    basis_names += dunnings
+    basis_names += calendars
+    basis_names += ugbs
+
     parsed = {}
     for basis in basis_names:
         parsed[basis] = []
@@ -72,7 +95,8 @@ def main(qc_exe):
             data = extract_one_log(logname)
             errors = ["Atomic number out of range", "Symbol not recognized",
                       "IA out of range", "basis sets are only available up to",
-                      "Error termination in BError"]
+                      "Error termination in BError", "No DZVP2 basis for",
+                      "No TZVP basis for"]
             if "syntax error" in data:
                 print "Syntax error in log -- misnamed basis set?"
             elif all([e not in data for e in errors]):
@@ -85,8 +109,12 @@ def main(qc_exe):
             combined = c.wrap_g94_to_gbs(parsed[basis], origin)
             with open(destination, "w") as outfile:
                 outfile.write(combined)
+        else:
+            failures.append(basis)
 
     os.system("rm -f Gau-*")
+    if failures:
+        print("FAILURES: {}".format(failures))
 
 if __name__ == '__main__':
     qc_exe = sys.argv[1]
