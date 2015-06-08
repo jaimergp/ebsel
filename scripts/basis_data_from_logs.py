@@ -36,6 +36,8 @@ def write_one_job(basis_set_name, element):
 
 def run_one_job(filename, qc_exe):
     cmd = "{0} {1}".format(qc_exe, filename)
+    for r in ["*", "(", ")", "'"]:
+        cmd = cmd.replace(r, "\\" + r)
     print(cmd)
     os.system(cmd)
 
@@ -55,7 +57,10 @@ def main(qc_exe):
     c = conversion.Converter()
 
     elements = [e[0] for e in c.elements[1:106]]
-    basis_names = ["6-311G", "6-311+G"]
+    dunnings = ["cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z", "cc-pV6Z"]
+
+    basis_names = ["STO-3G", "3-21G", "4-31G", "6-21G", "6-31G", "6-31G*",
+                   "6-31G(d')", "6-31G(d',p')", "6-311G", "6-311+G"]
     parsed = {}
     for basis in basis_names:
         parsed[basis] = []
@@ -65,11 +70,12 @@ def main(qc_exe):
             if not os.path.exists(logname):
                 run_one_job(job_file, qc_exe)
             data = extract_one_log(logname)
-            symbol_error_1 = "Atomic number out of range"
-            symbol_error_2 = "Symbol not recognized"
+            errors = ["Atomic number out of range", "Symbol not recognized",
+                      "IA out of range", "basis sets are only available up to",
+                      "Error termination in BError"]
             if "syntax error" in data:
                 print "Syntax error in log -- misnamed basis set?"
-            elif symbol_error_1 not in data and symbol_error_2 not in data:
+            elif all([e not in data for e in errors]):
                 pbs = c.parse_multi_from_gaussian_log_file(data)[0]
                 parsed[basis].append(pbs)
 
