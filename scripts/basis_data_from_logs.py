@@ -62,9 +62,9 @@ def main(qc_exe):
     #dunning basis sets plus "calendar" variants
     dunnings = ["cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z", "cc-pV6Z"]
     calendars = []
-    for month in ["apr", "may", "jun", "jul", "aug"]:
+    for prefix in ["apr", "may", "jun", "jul", "aug", "spAug", "dAug"]:
         for d in dunnings:
-            bsname = "{}-{}".format(month, d)
+            bsname = "{}-{}".format(prefix, d)
             calendars.append(bsname)
 
     #ugbs basis set series
@@ -74,12 +74,27 @@ def main(qc_exe):
             bsname = "UGBS{}{}".format(n, code)
             ugbs.append(bsname)
 
-    basis_names = ["STO-3G", "3-21G", "4-31G", "6-21G", "6-31G", "6-31G*",
-                   "6-31G(d')", "6-31G(d',p')", "6-311G", "6-311+G",
-                   "Def2SV", "Def2SVP", "Def2SVPP", "Def2TZV", "Def2TZVP",
-                   "Def2TZVPP", "Def2QZV", "Def2QZVP", "Def2QZVPP", "QZVP",
-                   "EPR-II", "EPR-III", "MTSmall", "DGDZVP", "DGDZVP2",
-                   "DGTZVP", "CBSB7"]
+    #various basis sets with polarization and diffuse functions
+    sets = [("3-21G", "", "+"), ("6-21G", "**", ""), ("4-31G", "**", ""),
+            ("6-31G", "**", "++"), ("6-311G", "**", "++")]
+    combinations = set()
+    for base, polar, diffuse in sets:
+        for j in range(3):
+            for k in range(3):
+                star = polar[:j]
+                plus = diffuse[:k]
+                name = base.replace("G", plus + "G")
+                name = name.replace("G", "G" + star)
+                combinations.add(name)
+
+    combinations = sorted(list(combinations))
+
+    basis_names = ["STO-3G", "6-31G(d')", "6-31G(d',p')", "SV", "SVP", "TZV",
+                   "TZVP", "Def2SV", "Def2SVP", "Def2SVPP", "Def2TZV",
+                   "Def2TZVP", "Def2TZVPP", "Def2QZV", "Def2QZVP",
+                   "Def2QZVPP", "QZVP", "MidiX", "EPR-II", "EPR-III",
+                   "MTSmall", "DGDZVP", "DGDZVP2", "DGTZVP", "CBSB7"]
+    basis_names += combinations
     basis_names += dunnings
     basis_names += calendars
     basis_names += ugbs
