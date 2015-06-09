@@ -4,10 +4,10 @@
 
 
 """Extract reference basis set data from log files by running a series of
-dummy single-atom calculations with gfinput.
+dummy single-atom calculations and processing the output.
 
 Usage:
-  scripts/basis_data_from_logs.py name-of-quantum-chemistry-program
+  ./scripts/basis_data_from_logs.py name-of-quantum-chemistry-program
 """
 
 import os
@@ -20,7 +20,7 @@ from src import conversion
 
 def write_one_job(basis_set_name, element):
     filename = "{}/{}__{}.com".format(workdir, basis_set_name, element)
-    tpl = """#n UHF/{basis} Guess=Only gfinput
+    deck = """#n UHF/{basis} Guess=Only gfinput
 
  Title
 
@@ -30,7 +30,7 @@ def write_one_job(basis_set_name, element):
 
 """.format(basis=basis_set_name, element=element)
     with open(filename, "w") as outfile:
-        outfile.write(tpl)
+        outfile.write(deck)
 
     return filename
 
@@ -93,15 +93,15 @@ def main(qc_exe):
             if not os.path.exists(logname):
                 run_one_job(job_file, qc_exe)
             data = extract_one_log(logname)
-            errors = ["Atomic number out of range", "Symbol not recognized",
-                      "IA out of range", "basis sets are only available up to",
-                      "Error termination in BError", "No DZVP2 basis for",
-                      "No TZVP basis for"]
+
             if "syntax error" in data:
                 print "Syntax error in log -- misnamed basis set?"
-            elif all([e not in data for e in errors]):
+
+            try:
                 pbs = c.parse_multi_from_gaussian_log_file(data)[0]
                 parsed[basis].append(pbs)
+            except:
+                pass
 
         if parsed[basis]:
             destination = "{}/{}.gbs".format(workdir, basis)
@@ -112,7 +112,7 @@ def main(qc_exe):
         else:
             failures.append(basis)
 
-    os.system("rm -f Gau-*")
+    os.system("rm -f ?au-*")
     if failures:
         print("FAILURES: {}".format(failures))
 

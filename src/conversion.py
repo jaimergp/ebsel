@@ -337,7 +337,7 @@ class Converter(object):
         return filtered
 
     def parse_multi_from_gaussian_log_file(self, text):
-        """Parse basis set data as logged by gfinput, from a Gaussian log
+        """Parse basis set data as logged by gfinput, from a log
         file.
 
         :param text: the contents of a log file
