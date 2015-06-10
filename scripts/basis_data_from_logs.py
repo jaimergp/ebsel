@@ -35,9 +35,9 @@ def write_one_job(basis_set_name, element):
     return filename
 
 def run_one_job(filename, qc_exe):
+    for r in ["*", "(", ")", "'", " ", ","]:
+        filename = filename.replace(r, "\\" + r)
     cmd = "{0} {1}".format(qc_exe, filename)
-    for r in ["*", "(", ")", "'"]:
-        cmd = cmd.replace(r, "\\" + r)
     print(cmd)
     os.system(cmd)
 
@@ -93,7 +93,8 @@ def main(qc_exe):
                    "TZVP", "Def2SV", "Def2SVP", "Def2SVPP", "Def2TZV",
                    "Def2TZVP", "Def2TZVPP", "Def2QZV", "Def2QZVP",
                    "Def2QZVPP", "QZVP", "MidiX", "EPR-II", "EPR-III",
-                   "MTSmall", "DGDZVP", "DGDZVP2", "DGTZVP", "CBSB7"]
+                   "MTSmall", "DGDZVP", "DGDZVP2", "DGTZVP", "CBSB7",
+                   "6-311G(2df,p)", "6-311+G(2df,p)", "6-311++G(2df,p)"]
     basis_names += combinations
     basis_names += dunnings
     basis_names += calendars
