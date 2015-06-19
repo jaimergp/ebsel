@@ -122,7 +122,9 @@ def main(qc_exe):
         if parsed[basis]:
             destination = "{}/{}.gbs".format(workdir, basis)
             origin = "{} log files".format(basis)
-            combined = c.wrap_g94_to_gbs(parsed[basis], origin)
+            for bse in parsed[basis]:
+                bse.origin = origin
+            combined = c.wrap_g94_to_gbs(parsed[basis])
             with open(destination, "w") as outfile:
                 outfile.write(combined)
         else:

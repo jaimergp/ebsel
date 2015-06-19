@@ -164,7 +164,7 @@ class ConversionTestCase(unittest.TestCase):
             for name, description in el.get_available_basis_sets([element]):
                 basis_raw = el.get_basis(name, [element])
                 basis = "\n".join(basis_raw)
-                parsed = c.parse_one_nwchem(basis)
+                parsed = c.parse_one_nwchem(basis, "test data")
                 functions = parsed.functions_per_shell
                 try:
                     value = max(functions.values())
