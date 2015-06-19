@@ -66,9 +66,9 @@ class EMSL_dump(object):
         finally:
             self.requests = requests
 
-        self.parser_map = {"GAMESS-US" : self.parse_basis_data_gamess_us,
-                           "NWChem" : self.parse_basis_data_nwchem,
-                           "Gaussian94" : self.parse_basis_data_gaussian94}
+        self.extraction_map = {"GAMESS-US" : self.extract_basis_data_gamess_us,
+                           "NWChem" : self.extract_basis_data_nwchem,
+                           "Gaussian94" : self.extract_basis_data_gaussian94}
 
     def get_list_format(self):
         """List all the format available in EMSL"""
@@ -182,12 +182,12 @@ class EMSL_dump(object):
         array = [d[key] for key in d]
 
         array_sort = sorted(array, key=lambda x: x[0])
-        print len(array_sort), "basisset will be download"
+        print len(array_sort), "basis set will be downloaded"
 
         return array_sort
 
-    def parse_basis_data_gaussian94(self, data, name, description, elements):
-        """Parse the Gaussian94 basis data raw html to get a nice tuple.
+    def extract_basis_data_gaussian94(self, data, name, description, elements):
+        """Extract the Gaussian94 basis data raw html to get a nice tuple.
 
         The data-pairs item is actually expected to be a 2 item list:
         [symbol, data]
@@ -369,8 +369,8 @@ class EMSL_dump(object):
         unpacked = json.loads(data)
         return unpacked
 
-    def parse_basis_data_nwchem(self, data, name, description, elements):
-        """Parse the NWChem basis data raw html to get a nice tuple.
+    def extract_basis_data_nwchem(self, data, name, description, elements):
+        """Extract the NWChem basis data raw html to get a nice tuple.
 
         The data-pairs item is actually expected to be a 2 item list:
         [symbol, data]
@@ -458,8 +458,8 @@ class EMSL_dump(object):
             pairs.append([symbol, serialized])
         return (name, description, pairs)
         
-    def parse_basis_data_gamess_us(self, data, name, des, elts):
-        """Parse the GAMESS-US basis data raw html to get a nice tuple"""
+    def extract_basis_data_gamess_us(self, data, name, des, elts):
+        """Extract the GAMESS-US basis data raw html to get a nice tuple"""
 
         d = []
 
@@ -550,8 +550,8 @@ class EMSL_dump(object):
 
         def worker():
             """get a Job from the q_in, do stuff, when finish put it in the q_out"""
-            parser_method = self.parser_map[self.format]
-            if parser_method is None:
+            extraction_method = self.extraction_map[self.format]
+            if extraction_method is None:
                 raise NotImplementedError("No parser currently available for {0} data".format(self.format))
 
             while True:
@@ -574,7 +574,7 @@ class EMSL_dump(object):
                     text = self.requests.get(url, params=params).text
 
                     try:
-                        basis_data = parser_method(text, name, des, elts)
+                        basis_data = extraction_method(text, name, des, elts)
                     except:
                         import ipdb; ipdb.set_trace()
                         time.sleep(0.1)

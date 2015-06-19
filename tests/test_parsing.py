@@ -32,7 +32,7 @@ class ParserTestCase(unittest.TestCase):
         with open("tests/samples/nwchem-ahlrichs-cf.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         he_cd_data = json.loads(parsed[1][1])["cd basis"]
@@ -50,7 +50,7 @@ class ParserTestCase(unittest.TestCase):
         with open("tests/samples/nwchem-lanl2dz-ecponly-small.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
 
@@ -78,7 +78,7 @@ class ParserTestCase(unittest.TestCase):
         with open("tests/samples/nwchem-lanl2dz-ecp.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
 
@@ -115,7 +115,7 @@ He    S
         with open("tests/samples/nwchem-6-31Gs.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         self.assertEqual(len(elements), len(parsed))
@@ -133,7 +133,7 @@ He    S
         with open("tests/samples/nwchem-B2_basis_set_for_Zn.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         self.assertEqual(1, len(parsed))
@@ -150,7 +150,7 @@ He    S
         with open("tests/samples/gamess-us-6-31Gs.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         self.assertEqual(len(elements), len(parsed))
@@ -168,7 +168,7 @@ He    S
         with open("tests/samples/gaussian94-6-31Gs.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         self.assertEqual(len(elements), len(parsed))
@@ -188,7 +188,7 @@ He    S
         with open("tests/samples/gaussian94-dzvp.html") as infile:
             text = infile.read()
 
-        parser_method = ed.parser_map[ed.format]
+        parser_method = ed.extraction_map[ed.format]
         name, description, parsed = parser_method(text, name, description,
                                                   elements)
         #This commented-out assertion would fail; > 1 block per element here
