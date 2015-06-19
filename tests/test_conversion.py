@@ -27,7 +27,7 @@ class ConversionTestCase(unittest.TestCase):
         c = conversion.Converter()
         el = EMSL_local(fmt="nwchem", debug=False)
         basis = "\n".join(el.get_basis(basis_name, [element_symbol]))
-        parsed = c.parse_one_nwchem(basis)
+        parsed = c.parse_one_nwchem(basis, "reparsed data")
         return parsed
 
     def parse_g94(self, basis_name, element_symbol):
@@ -35,7 +35,7 @@ class ConversionTestCase(unittest.TestCase):
         c = conversion.Converter()
         el = EMSL_local(fmt="g94", debug=False)
         basis = "\n".join(el.get_basis(basis_name, [element_symbol]))
-        parsed = c.parse_one_g94(basis)
+        parsed = c.parse_one_g94(basis, "reparsed data")
         return parsed
 
     def test_functions_per_shell_basic_nwchem(self):
@@ -137,8 +137,6 @@ class ConversionTestCase(unittest.TestCase):
         self.assertTrue("BASIS SET reformatted" in data[0])
         self.assertTrue("origin: db/g94/6-311G.gbs" in data[0])
 
-
-
     def test_parse_multi_from_gaussian_log(self):
         #test extraction of one or more basis set entries
         #from a gaussian log file and subsequent transformation
@@ -149,7 +147,7 @@ class ConversionTestCase(unittest.TestCase):
         parsed = c.parse_multi_from_gaussian_log_file(data)
         expected = "[<H cartesian {'S' : 1}>, <C cartesian {'S' : 1, 'SP' : 2}>]"
         self.assertEqual(expected, str(parsed))
-        rewrapped = c.wrap_g94_to_gbs(parsed, "logfile")
+        rewrapped = c.wrap_g94_to_gbs(parsed)
 
         #round trip conversion test
         parsed2 = c.parse_multi_g94(rewrapped)

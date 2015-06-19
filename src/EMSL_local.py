@@ -344,8 +344,9 @@ class EMSL_local(object):
 
         with open(file_name) as infile:
             file_data = infile.read()
+        origin = "db/" + file_name.split("db/", 1)[-1]
         parsefn = parser_map[fmt]
-        parsed = parsefn(file_data)
+        parsed = parsefn(file_data, origin)
 
         return parsed
 
@@ -570,9 +571,6 @@ class EMSL_local(object):
         el = EMSL_local(fmt=fmt, debug=False)
         c = conversion.Converter()
 
-        converters = {"nwchem" : c.format_one_nwchem,
-                      "gamess-us" : c.format_one_gamess_us,
-                      "g94" : c.format_one_g94}
         wrappers = {"nwchem" : c.wrap_converted_nwchem,
                     "gamess-us" : c.wrap_converted_gamess_us,
                     "g94" : c.wrap_converted_g94}
@@ -582,7 +580,6 @@ class EMSL_local(object):
                    "g94" : c.parse_one_g94}
 
         try:
-            converter = converters[destination_format]
             wrapper = wrappers[destination_format]
             parser = parsers[fmt]
             dbname = dbnames[fmt]
@@ -595,9 +592,8 @@ class EMSL_local(object):
 
             for element in elements:
                 basis = "\n".join(el.get_basis(basis_name, [element]))
-                parsed = parser(basis)
-                converted = converter(parsed, dbname)
-                completed.append(converted)
+                bse = parser(basis, dbname)
+                completed.append(bse)
 
         #either no data was found in the database or we are deliberately
         #bypassing the database to force use of basis data from file system
@@ -607,18 +603,17 @@ class EMSL_local(object):
             if bs:
                 flist = self.get_basis_files(fmt)
                 basfile = [x["file"] for x in flist if x["name"] == basis_name][0]
-                parsed = self.load_basis_file(fmt, basfile)
+                bse = self.load_basis_file(fmt, basfile)
                 if not elements:
-                    elements = [p.symbol for p in parsed]
+                    elements = [p.symbol for p in bse]
 
-                selected = [p for p in parsed if p.symbol in elements]
-                origin = bs[0][1]
-                converted = [converter(p, origin) for p in selected]
-                wrapped = wrapper(converted, selected[0].spherical_or_cartesian)
+                selected = [p for p in bse if p.symbol in elements]
+                wrapped = wrapper(selected)
 
         else:
-            wrapped = wrapper(completed, parsed.spherical_or_cartesian)
+            wrapped = wrapper(completed)
 
+        #FIXME: get wrid of the damnable list wrapping
         return [wrapped]
 
     def get_basis(self, basis_name, elements=[], convert_from="", bypass_db=False):

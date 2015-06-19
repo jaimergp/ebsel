@@ -101,13 +101,15 @@ class Converter(object):
         i = slower.index(symbol.lower())
         return i
 
-    def parse_multi_nwchem(self, text):
+    def parse_multi_nwchem(self, text, origin="unknown origin"):
         """Parse a block of NWChem atomic orbital basis set data potentially
         containing multiple elements.
         N.B.: not for ECP data!
 
         :param text: a text block of basis set data for one or more elements
         :type text : str
+        :param origin: where the data originally came from
+        :type origin: str
         :return: parsed basis set data
         :rtype : list
         """
@@ -127,16 +129,18 @@ class Converter(object):
                     chunks[-1].append(line)
 
         rejoined = ["\n".join(c) for c in chunks]
-        parsed = [self.parse_one_nwchem(r) for r in rejoined]
+        parsed = [self.parse_one_nwchem(r, origin) for r in rejoined]
         return parsed
 
-    def parse_multi_g94(self, text):
+    def parse_multi_g94(self, text, origin="unknown origin"):
         """Parse a block of Gaussian 94 format basis set data, as used by,
         Psi4, potentially containing multiple elements.
         N.B.: not for ECP data!
 
         :param text: a text block of basis set data for one or more elements
         :type text : str
+        :param origin: where the data originally came from
+        :type origin: str
         :return: parsed basis set data
         :rtype : list
         """
@@ -150,7 +154,7 @@ class Converter(object):
 
 
         sections = text.strip().split("****")
-        parsed = [self.parse_one_g94(s) for s in sections]
+        parsed = [self.parse_one_g94(s, origin) for s in sections]
         filtered = [p for p in parsed if len(p.functions) > 0]
         if spherical_or_cartesian:
             for f in filtered:
@@ -252,12 +256,14 @@ class Converter(object):
         return uniques
 
 
-    def parse_one_nwchem(self, text):
+    def parse_one_nwchem(self, text, origin):
         """Parse a block of NWChem atomic orbital basis set data for
         one element. N.B.: not for ECP data!
 
         :param text: a text block of basis set data for one element
         :type text : str
+        :param origin: where the data originally came from
+        :type origin: str
         :return: parsed basis set data
         :rtype : BasisSetEntry
         """
@@ -267,7 +273,9 @@ class Converter(object):
              "element_name" : "",
              "element_number" : 0,
              "scale_factor" : 1.0,
-             "functions" : []}
+             "functions" : [],
+             "basis_type" : "ao basis",
+             "origin" : origin}
 
         for line in text.split("\n"):
             lower = line.lower()
@@ -311,12 +319,14 @@ class Converter(object):
 
         return BasisSetEntry(d)
 
-    def parse_one_g94(self, original_text):
+    def parse_one_g94(self, original_text, origin):
         """Parse a block of Gaussian 94 atomic orbital basis set data for
         one element. N.B.: not for ECP data!
 
         :param original_text: a text block of basis set data for one element
         :type original_text : str
+        :param origin: where the data originally came from
+        :type origin: str
         :return: parsed basis set data
         :rtype : BasisSetEntry
         """
@@ -333,7 +343,9 @@ class Converter(object):
              "element_name" : "",
              "element_number" : 0,
              "scale_factor" : 1.0,
-             "functions" : []}
+             "functions" : [],
+             "basis_type" : "ao basis",
+             "origin" : origin}
 
         if "cartesian" in text.lower():
             d["spherical_or_cartesian"] = "cartesian"
@@ -397,79 +409,32 @@ class Converter(object):
 
         return BasisSetEntry(d)
 
-    def wrap_g94_to_gbs(self, basis_list, origin):
+    def wrap_g94_to_gbs(self, basis_set_entries):
         """Ensure that data from parse_multi_from_gaussian_log_file is
         in normalized format and joined into a form suitable for .gbs
         basis files as used by Psi4.
 
-        :param basis_list: parsed basis set data list
-        :type basis_list : list
+        :param basis_set_entries: parsed basis set data list
+        :type basis_set_entries : list
         :param origin:
         :return: .gbs-form basis set data
         :rtype : str
         """
 
-        z = [self.format_one_g94(x, origin) for x in basis_list]
-        text = self.wrap_converted_g94(z, basis_list[0].spherical_or_cartesian)
+        text = self.wrap_converted_g94(basis_set_entries)
         text = text.replace("#", "!")
         text = text.replace("!BASIS", "****\n!BASIS")
         text = text.replace("****\n****\n", "****\n")
-        soc_header = "{}\n".format(basis_list[0].spherical_or_cartesian)
+        soc_header = "{}\n".format(basis_set_entries[0].spherical_or_cartesian)
         final = soc_header + text
         return final
 
-    def format_one_nwchem(self, basis_data, origin):
-        """Format one block of basis data and tag it with an
-        origin comment.
-
-        :param basis_data: a standard "tall" basis set entry
-        :type basis_data : BasisSetEntry
-        :param origin: where the data originally came from
-        :type origin : str
-        :return: a formatted basis data block for NWChem
-        :rtype : str
-        """
-
-        fns = []
-        fps = basis_data.functions_per_shell
-        contracted = []
-        for key, value in fps.items():
-            entry = "{}{}".format(value, key.lower())
-            contracted.append(entry)
-
-        reformatted = basis_data.reformat_functions()
-        for shell, functions in reformatted:
-            for outer in functions:
-                fns.append("{}     {}".format(basis_data.symbol, shell))
-                for vals in outer:
-                    col1 = "{:.7f}".format(vals[0])
-                    col2 = "{:.7f}".format(vals[1])
-                    try:
-                        col3 = "{:.7f}".format(vals[2])
-                        pad3 = " " * (16 - col3.index("."))
-                    except IndexError:
-                        col3 = ""
-                        pad3 = ""
-                    pad1 = " " * (8 - col1.index("."))
-                    pad2 = " " * (16 - col2.index("."))
-
-                    row = pad1 + col1 + pad2 + col2 + pad3 + col3
-                    fns.append(row)
-
-        c2 = "#BASIS SET reformatted: [{}]".format(",".join(contracted))
-        c3 = "#origin: {}".format(origin)
-
-        block = "\n".join([c2, c3] + fns)
-        return block
-
-    def wrap_converted_nwchem(self, basis_set_entries, spherical_or_cartesian):
+    def wrap_converted_nwchem(self, basis_set_entries):
         """Wrap a list of converted basis set entries into a basis
         set data section suitable for embedding in NWChem input decks.
 
         :param basis_set_entries: one or more BasisSetEntry values to wrap
         :type basis_set_entries : list
-        :param spherical_or_cartesian: pure or cartesian form functions
-        :type spherical_or_cartesian : str
         :return: formatted basis set data section
         :rtype : str
         """
@@ -477,133 +442,41 @@ class Converter(object):
         if not basis_set_entries:
             formatted = ""
         else:
+            spherical_or_cartesian = basis_set_entries[0].spherical_or_cartesian
+            textualized = [x.format_as_nwchem() for x in basis_set_entries]
             head = """basis "ao basis" {} """.format(spherical_or_cartesian)
-            formatted = "\n".join([head] + basis_set_entries + ["END"])
+            formatted = "\n".join([head] + textualized + ["END"])
 
         return formatted
 
-    def format_one_gamess_us(self, basis_data, origin):
-        """Format one block of basis data and tag it with an
-        origin comment.
-
-        :param basis_data: a standard "tall" basis set entry
-        :type basis_data : BasisSetEntry
-        :param origin: where the data originally came from
-        :type origin : str
-        :return: a formatted basis data block for GAMESS-US
-        :rtype : str
-        """
-
-        fns = []
-        fps = basis_data.functions_per_shell
-        contracted = []
-        for key, value in fps.items():
-            entry = "{}{}".format(value, key.lower())
-            contracted.append(entry)
-
-        reformatted = basis_data.reformat_functions()
-        for shell, functions in reformatted:
-            #GAMESS calls SP shells L shells
-            if shell == "SP":
-                shell = "L"
-            for outer in functions:
-                fns.append("{}   {}".format(shell, len(outer)))
-                for j, vals in enumerate(outer):
-                    col0 = str(j + 1)
-                    pad0 = " " * (3 - len(col0))
-                    col1 = "{:.7f}".format(vals[0])
-                    col2 = "{:.7f}".format(vals[1])
-                    try:
-                        col3 = "{:.7f}".format(vals[2])
-                        pad3 = " " * (15 - col3.index("."))
-                    except IndexError:
-                        col3 = ""
-                        pad3 = ""
-                    pad1 = " " * (7 - col1.index("."))
-                    pad2 = " " * (15 - col2.index("."))
-                    row = pad0 + col0 + pad1 + col1 + pad2 + col2 + pad3 + col3
-                    fns.append(row)
-
-        c1 = basis_data.name.upper()
-        c2 = "!BASIS SET reformatted: [{}]".format(",".join(contracted))
-        c3 = "!origin: {}".format(origin)
-
-        block = "\n".join([c1, c2, c3] + fns)
-        return block
-
-    def wrap_converted_gamess_us(self, basis_set_entries, spherical_or_cartesian):
+    def wrap_converted_gamess_us(self, basis_set_entries):
         """Wrap a list of converted basis set entries into a basis
         set data section suitable for embedding in GAMESS-US input decks.
 
         :param basis_set_entries: one or more BasisSetEntry values to wrap
         :type basis_set_entries : list
-        :param spherical_or_cartesian: pure or cartesian form functions
-        :type spherical_or_cartesian : str
         :return: formatted basis set data section
         :rtype : str
         """
 
-        formatted = "\n".join(basis_set_entries)
+        textualized = [x.format_as_gamess_us() for x in basis_set_entries]
+        formatted = "\n".join(textualized)
         return formatted
 
-    def format_one_g94(self, basis_data, origin):
-        """Format one block of basis data and tag it with an
-        origin comment.
-
-        :param basis_data: a standard "tall" basis set entry
-        :type basis_data : BasisSetEntry
-        :param origin: where the data originally came from
-        :type origin : str
-        :return: a formatted basis data block for Gaussian 94 or compatible
-        :rtype : str
-        """
-
-        fns = []
-        fps = basis_data.functions_per_shell
-        contracted = []
-        for key, value in fps.items():
-            entry = "{}{}".format(value, key.lower())
-            contracted.append(entry)
-
-        fns.append("{}     0".format(basis_data.symbol))
-
-        reformatted = basis_data.reformat_functions()
-        for shell, functions in reformatted:
-            for outer in functions:
-                fns.append("{}   {}   {:.1f}".format(shell, len(outer),
-                                                     basis_data.scale_factor))
-                for j, vals in enumerate(outer):
-                    col1 = "{:.7f}".format(vals[0])
-                    col2 = "{:.7f}".format(vals[1])
-                    try:
-                        col3 = "{:.7f}".format(vals[2])
-                        pad3 = " " * (15 - col3.index("."))
-                    except IndexError:
-                        col3 = ""
-                        pad3 = ""
-                    pad1 = " " * (7 - col1.index("."))
-                    pad2 = " " * (15 - col2.index("."))
-                    row = pad1 + col1 + pad2 + col2 + pad3 + col3
-                    fns.append(row)
-
-        c2 = "#BASIS SET reformatted: [{}]".format(",".join(contracted))
-        c3 = "#origin: {}".format(origin)
-
-        block = "\n".join([c2, c3] + fns)
-        return block
-
-    def wrap_converted_g94(self, basis_set_entries, spherical_or_cartesian):
+    def wrap_converted_g94(self, basis_set_entries):
         """Wrap a list of converted basis set entries into a basis
         set data section suitable for using in Gaussian 94 or compatible
         format.
 
         :param basis_set_entries: one or more BasisSetEntry values to wrap
         :type basis_set_entries : list
-        :param spherical_or_cartesian: pure or cartesian form functions
-        :type spherical_or_cartesian : str
         :return: formatted basis set data section
         :rtype : str
         """
 
-        formatted = "\n".join(["****"] + basis_set_entries + ["****"])
+        if not basis_set_entries:
+            formatted = ""
+        else:
+            textualized = [x.format_as_g94() for x in basis_set_entries]
+            formatted = "\n".join(["****"] + textualized + ["****"])
         return formatted
