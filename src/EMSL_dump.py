@@ -182,7 +182,7 @@ class EMSL_dump(object):
         array = [d[key] for key in d]
 
         array_sort = sorted(array, key=lambda x: x[0])
-        print len(array_sort), "basis set will be downloaded"
+        print len(array_sort), "basis sets will be downloaded"
 
         return array_sort
 

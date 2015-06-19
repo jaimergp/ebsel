@@ -616,8 +616,8 @@ class EMSL_local(object):
         #FIXME: get wrid of the damnable list wrapping
         return [wrapped]
 
-    def fetch_basis(self, basis_name, elements):
-        """Get basis data for named basis set from a sqlite3 database.
+    def fetch_raw(self, basis_name, elements):
+        """Get raw basis data for named basis set from a sqlite3 database.
 
         :param basis_name: name of the basis set
         :type basis_name : str
@@ -643,6 +643,20 @@ class EMSL_local(object):
 
         l_data_raw = c.fetchall()
         conn.close()
+        return l_data_raw
+
+    def fetch_basis(self, basis_name, elements):
+        """Get basis data for named basis set from a sqlite3 database.
+
+        :param basis_name: name of the basis set
+        :type basis_name : str
+        :param elements: elements that need basis data
+        :type elements : list
+        :return: basis set data for one or more elements
+        :rtype : list
+        """
+
+        l_data_raw = self.fetch_raw(basis_name, elements)
         if l_data_raw:
             processed = self.process_raw_data(l_data_raw, basis_name)
             return processed
