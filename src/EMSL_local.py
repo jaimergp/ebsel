@@ -85,7 +85,7 @@ class EMSL_local(object):
         #The lambda just returns raw data unchanged.
         self.block_wrappers = {"gamess-us" : lambda x, y: x,
                                "nwchem" : self.wrap_nwchem,
-                               "g94" : self.wrap_gaussian94}
+                               "g94" : self.wrap_g94}
         self.debug = debug
 
     def db_from_format(self, fmt):
@@ -228,8 +228,8 @@ class EMSL_local(object):
 
         return (mbf, too_large)
 
-    def wrap_gaussian94(self, blocks, basis_name):
-        """Wrap up g94 blocks with **** at head and foot.
+    def wrap_g94(self, blocks, basis_name):
+        """Wrap up Gaussian 94 blocks with **** at head and foot.
 
         N.B.: basis_name is currently ignored
 
@@ -616,10 +616,41 @@ class EMSL_local(object):
         #FIXME: get wrid of the damnable list wrapping
         return [wrapped]
 
+    def fetch_basis(self, basis_name, elements):
+        """Get basis data for named basis set from a sqlite3 database.
+
+        :param basis_name: name of the basis set
+        :type basis_name : str
+        :param elements: elements that need basis data
+        :type elements : list
+        :return: basis set data for one or more elements
+        :rtype : list
+        """
+
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+
+        if elements:
+            cmd_ele = "AND " + " ".join(cond_sql_or("elt", elements))
+        else:
+            cmd_ele = ""
+
+        query = """SELECT DISTINCT data from output_tab
+        WHERE name="{basis_name}" COLLATE NOCASE
+        {cmd_ele}""".format(basis_name=basis_name,
+                            cmd_ele=cmd_ele)
+        c.execute(query)
+
+        l_data_raw = c.fetchall()
+        conn.close()
+        if l_data_raw:
+            processed = self.process_raw_data(l_data_raw, basis_name)
+            return processed
+
     def get_basis(self, basis_name, elements=[], convert_from="", bypass_db=False):
-        """Get basis data for named basis set. If elts is empty, all elements
-         in the named basis set will be returned. If convert_from is set,
-         the basis set data will first be read in the convert_from format
+        """Get basis data for named basis set. If elements is empty, all
+         elements in the named basis set will be returned. If convert_from is
+         set, the basis set data will first be read in the convert_from format
          and transformed to the self.fmt for output.
 
          If basis set data is not found in the matching native-format
@@ -650,29 +681,11 @@ class EMSL_local(object):
         elif convert_from:
             raise NotImplementedError("Conversion from {} not implemented".format(convert_from))
 
-        l_data_raw = []
-
         if not bypass_db:
-            conn = sqlite3.connect(self.db_path)
-            c = conn.cursor()
-            if elements:
-                cmd_ele = "AND " + " ".join(cond_sql_or("elt", elements))
-            else:
-                cmd_ele = ""
-
-            query = """SELECT DISTINCT data from output_tab
-                       WHERE name="{basis_name}" COLLATE NOCASE
-                       {cmd_ele}""".format(basis_name=basis_name,
-                                           cmd_ele=cmd_ele)
-            c.execute(query)
-
-            l_data_raw = c.fetchall()
-            conn.close()
-            if l_data_raw:
-                processed = self.process_raw_data(l_data_raw, basis_name)
+            processed = self.fetch_basis(basis_name, elements)
 
         #no results from db, so try supplemenal filesystem data
-        if not l_data_raw:
+        if not processed:
             #convert from nwchem by default, also if it's explicitly chosen
             if not convert_from or convert_from == "nwchem":
                 processed = self.convert_from_format("nwchem", basis_name,
@@ -682,11 +695,12 @@ class EMSL_local(object):
 
             #convert from g94 if explicitly chosen or nwchem fallback failed
             if convert_from == "g94" or not processed:
-                processed = self.convert_from_nwchem_fs("g94", basis_name, self.fmt, elements=elements)
+                processed = self.convert_from_format("g94", basis_name,
+                                                     self.fmt,
+                                                     elements=elements,
+                                                     bypass_db=True)
 
         return processed
-        
-        return l_data
 
 if __name__ == "__main__":
 
