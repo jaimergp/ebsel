@@ -409,6 +409,83 @@ class Converter(object):
 
         return BasisSetEntry(d)
 
+    def parse_one_gamess_us(self, text, origin):
+        """Parse a block of GAMESS-US atomic orbital basis set data for
+        one element. N.B.: not for ECP data!
+
+        :param text: a text block of basis set data for one element
+        :type text : str
+        :param origin: where the data originally came from
+        :type origin: str
+        :return: parsed basis set data
+        :rtype : BasisSetEntry
+        """
+
+        #ignore ECP data that might be in a second block
+        text = text.split("$ECP")[0]
+
+        d = {"spherical_or_cartesian" : "spherical",
+             "element_symbol" : "",
+             "element_name" : "",
+             "element_number" : 0,
+             "scale_factor" : 1.0,
+             "functions" : [],
+             "basis_type" : "ao basis",
+             "origin" : origin}
+
+        if "cartesian" in text.lower():
+            d["spherical_or_cartesian"] = "cartesian"
+        elif "spherical" in text.lower():
+            d["spherical_or_cartesian"] = "spherical"
+
+        enames = [e[1].lower() for e in self.elements]
+        enset = frozenset(enames)
+
+        for line in text.split("\n"):
+            lower = line.lower()
+            numericized = self.numericize(line)
+            types = [type(n) for n in numericized]
+
+            #need to have an alternate version where all
+            # 0.7161683735d+02 etc
+            #become
+            #0.7161683735e+02
+            #so we can see if a line would be all-numeric after replacement
+
+            numeric_replaced = self.numericize(lower.replace('d', 'e'))
+            nr_types = [type(n) for n in numeric_replaced]
+
+            #skip comments, blank lines, controls
+            if not lower.strip() or lower[0] in ("!", "$"):
+                pass
+
+            #this will be the element name, like CHLORINE
+            elif lower in enset:
+                atomic_number = enames.index(lower)
+                element_symbol = self.get_element_symbol(atomic_number)
+                d["element_symbol"] = element_symbol
+                d["element_number"] = atomic_number
+
+            #this will be a line of all numerical values like
+            #  1  25180.1000000              0.0018330
+            #or
+            #  1    491.7650000             -0.0022974              0.0039894
+            elif nr_types == [int] + [float] * (len(types) - 1):
+                d["functions"][-1][1].append(numeric_replaced[1:])
+
+            #this will be a line heading a group of coefficients
+            #S   6
+            else:
+                shell_type = numericized[0]
+                #What Gaussian and NWChem call SP shells, GAMESS calls L
+                #This means that GAMESS is fundamentally unable to deal
+                #with higher angular momentum than K
+                if shell_type == "L":
+                    shell_type = "SP"
+                d["functions"].append((shell_type, []))
+
+        return BasisSetEntry(d)
+
     def wrap_g94_to_gbs(self, basis_set_entries):
         """Ensure that data from parse_multi_from_gaussian_log_file is
         in normalized format and joined into a form suitable for .gbs

@@ -616,7 +616,7 @@ class EMSL_local(object):
         #FIXME: get wrid of the damnable list wrapping
         return [wrapped]
 
-    def fetch_raw(self, basis_name, elements):
+    def fetch_basis_raw(self, basis_name, elements):
         """Get raw basis data for named basis set from a sqlite3 database.
 
         :param basis_name: name of the basis set
@@ -656,7 +656,8 @@ class EMSL_local(object):
         :rtype : list
         """
 
-        l_data_raw = self.fetch_raw(basis_name, elements)
+        #TODO: move special nwchem json treatment here, convert others to list-of-dicts form
+        l_data_raw = self.fetch_basis_raw(basis_name, elements)
         if l_data_raw:
             processed = self.process_raw_data(l_data_raw, basis_name)
             return processed

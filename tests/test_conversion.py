@@ -38,6 +38,14 @@ class ConversionTestCase(unittest.TestCase):
         parsed = c.parse_one_g94(basis, "reparsed data")
         return parsed
 
+    def parse_gamess_us(self, basis_name, element_symbol):
+        #conversion from GAMESS-US format to neutral intermediate
+        c = conversion.Converter()
+        el = EMSL_local(fmt="gamess-us", debug=False)
+        basis = "\n".join(el.get_basis(basis_name, [element_symbol]))
+        parsed = c.parse_one_gamess_us(basis, "reparsed data")
+        return parsed
+
     def test_functions_per_shell_basic_nwchem(self):
         #check functions per shell on parsed data
         reference = OrderedDict([("S", 5), ("P", 4), ("D", 2), ("F", 1)])
@@ -48,6 +56,13 @@ class ConversionTestCase(unittest.TestCase):
         #check function ordering for basis set with SP functions
         reference = OrderedDict([("S", 1), ("SP", 6), ("D", 1)])
         parsed = self.parse_nwchem("6-31G*", "Cl")
+        self.assertEqual(reference, parsed.functions_per_shell)
+
+    def test_functions_per_shell_sp_gamess_us(self):
+        #check function ordering for basis set with SP functions
+        #in GAMESS-US these are called "L" functions
+        reference = OrderedDict([("S", 1), ("SP", 6), ("D", 1)])
+        parsed = self.parse_gamess_us("6-31G*", "Cl")
         self.assertEqual(reference, parsed.functions_per_shell)
 
     def test_functions_per_shell_basic_g94(self):
@@ -97,10 +112,14 @@ class ConversionTestCase(unittest.TestCase):
         args = ("cc-pVTZ", "Li")
         p1 = self.parse_nwchem(*args)
         p2 = self.parse_g94(*args)
+        p3 = self.parse_gamess_us(*args)
         self.assertEqual(p1.functions_per_shell, p2.functions_per_shell)
+        self.assertEqual(p1.functions_per_shell, p3.functions_per_shell)
         c1 = p1._reformat_functions(p1.functions)
         c2 = p2._reformat_functions(p2.functions)
+        c3 = p3._reformat_functions(p3.functions)
         self.assertEqual(c1, c2)
+        self.assertEqual(c1, c3)
 
     def test_convert_from_nwchem_to_nwchem(self):
         #test 'internal' conversion from nwchem to nwchem
