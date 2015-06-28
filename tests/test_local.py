@@ -126,9 +126,10 @@ class LocalTestCase(unittest.TestCase):
         #test that we can get the name of supplemental basis set stored on
         #the file system
         el = EMSL_local(fmt="nwchem")
-        expected = [("g3mp2large", "db/nwchem/g3mp2large.nwbas")]
+        expected = [("g3mp2large", "db/nwchem/g3mp2large.nwbas"),
+                    ("g3largexp", "db/nwchem/g3largexp.nwbas")]
         names = el.get_available_basis_sets_fs("nwchem")
-        self.assertEqual(expected, names)
+        self.assertEqual(sorted(expected), sorted(names))
 
     def test_get_available_elements_fs(self):
         #test that we can get elements from supplemental basis set stored on
