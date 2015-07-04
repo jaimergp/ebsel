@@ -94,7 +94,8 @@ def main(qc_exe):
                    "Def2TZVP", "Def2TZVPP", "Def2QZV", "Def2QZVP",
                    "Def2QZVPP", "QZVP", "MidiX", "EPR-II", "EPR-III",
                    "MTSmall", "DGDZVP", "DGDZVP2", "DGTZVP", "CBSB7",
-                   "6-311G(2df,p)", "6-311+G(2df,p)", "6-311++G(2df,p)"]
+                   "6-311G(2df,p)", "6-311+G(2df,p)", "6-311++G(2df,p)",
+                   "6-31G(2df,p)"]
     basis_names += combinations
     basis_names += dunnings
     basis_names += calendars
