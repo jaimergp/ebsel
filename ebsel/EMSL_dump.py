@@ -578,7 +578,7 @@ class EMSL_dump(object):
                     try:
                         basis_data = extraction_method(text, name, des, elts)
                     except:
-                        import ipdb; ipdb.set_trace()
+                        # import ipdb; ipdb.set_trace()
                         time.sleep(0.1)
                         attemps += 1
                     else:

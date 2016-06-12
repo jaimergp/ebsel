@@ -407,7 +407,8 @@ class Converter(object):
                 try:
                     scale_factor = numericized[2]
                 except IndexError:
-                    import ipdb; ipdb.set_trace()
+                    scale_factor = '!None'
+                    # import ipdb; ipdb.set_trace()
                 d["scale_factor"] = scale_factor
                 d["functions"].append((shell_type, []))
 
