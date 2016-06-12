@@ -10,13 +10,13 @@ Usage:
   ./scripts/basis_data_from_logs.py name-of-quantum-chemistry-program
 """
 
+from __future__ import print_function, absolute_import
 import os
-import glob
 import sys
 
 workdir = "/tmp/basis_data_from_logs"
 
-from src import conversion
+from ..ebsel import conversion
 
 def write_one_job(basis_set_name, element):
     filename = "{}/{}__{}.com".format(workdir, basis_set_name, element)
@@ -46,7 +46,7 @@ def extract_one_log(filename):
         with open(filename) as infile:
             data = infile.read()
     except IOError:
-        print "IOERROR!"
+        print("IOERROR!")
         data = ""
 
     return data
@@ -112,7 +112,7 @@ def main(qc_exe):
             data = extract_one_log(logname)
 
             if "syntax error" in data:
-                print "Syntax error in log -- misnamed basis set?"
+                print("Syntax error in log -- misnamed basis set?")
 
             try:
                 pbs = c.parse_multi_from_gaussian_log_file(data)[0]

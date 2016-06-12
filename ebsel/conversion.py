@@ -2,10 +2,14 @@
 # -*- coding:utf-8 mode:python; tab-width:4; indent-tabs-mode:nil; py-indent-offset:4 -*-
 ##
 
+from __future__ import print_function, absolute_import
 import os
 import string
 import sys
-from structures import BasisSetEntry
+from .structures import BasisSetEntry
+
+if sys.version_info.major == 3:
+    basestring = str
 
 class Converter(object):
     def __init__(self):
@@ -18,7 +22,7 @@ class Converter(object):
 
         datfile = os.path.dirname(__file__) + "/elts_abrev.dat"
         if not os.path.exists(datfile):
-            datfile = "src/elts_abrev.dat"
+            datfile = "ebsel/elts_abrev.dat"
 
         with open(datfile, "r") as f:
             data = f.readlines()
@@ -374,14 +378,14 @@ class Converter(object):
             #Cl     0
             #can also have an integer instead of symbol with gfprint, e.g.
             #1 0
-            elif types in ([str, int], [unicode, int], [int, int]):
+            elif types in ([basestring, int], [int, int]):
                 try:
                     element_symbol = numericized[0].title()
                     atomic_number = self.get_atomic_number(element_symbol)
                     d["element_symbol"] = element_symbol
                     d["element_number"] = atomic_number
                 except AttributeError:
-                    #this was a section from gfprint and we can't actually
+                    #this was a section from gfprint(and we can't actually)
                     #figure out the element here
                     pass
 

@@ -193,11 +193,11 @@ class ConversionTestCase(unittest.TestCase):
                     continue
                 key = (element, name)
                 counts.append((value, key))
-                print counts[-1], functions
+                print(counts[-1], functions)
 
         counts.sort()
-        print counts[-1]
-        print shells
+        print(counts[-1])
+        print(shells)
  
 
 def runSuite(cls, verbosity=2, name=None):

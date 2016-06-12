@@ -2,12 +2,16 @@
 # -*- coding:utf-8 mode:python; tab-width:4; indent-tabs-mode:nil; py-indent-offset:4 -*-
 ##
 
+from __future__ import print_function, absolute_import
 import sqlite3
 import re
 import sys
 import os
 import json
 import time
+
+if sys.version_info.major == 3:
+    raw_input = input
 
 def install_with_pip(name):
 
@@ -21,14 +25,14 @@ def install_with_pip(name):
             ins = d[choice.lower()]
             break
         except:
-            print "not a valid choice"
+            print("not a valid choice")
 
     if ins:
         try:
             import pip
             pip.main(['install', name])
         except:
-            print "You need pip, (http://pip.readthedocs.org/en/latest/installing.html)"
+            print("You need pip, (http://pip.readthedocs.org/en/latest/installing.html)")
             sys.exit(1)
 
 
@@ -61,7 +65,7 @@ class EMSL_dump(object):
         try:
             import requests
         except:
-            print "You need the requests package"
+            print("You need the requests package")
             install_with_pip("requests")
         finally:
             self.requests = requests
@@ -94,7 +98,7 @@ class EMSL_dump(object):
         return dict_ele
 
     def dwl_basis_list_raw(self):
-        print "Download all the name available in EMSL. It can take some time.",
+        print("Download all the name available in EMSL. It can take some time.",)
         sys.stdout.flush()
 
         """Download the source code of the iframe who contains the list of the basis set available"""
@@ -115,7 +119,7 @@ class EMSL_dump(object):
         else:
             page = self.requests.get(url).text
 
-        print "Done"
+        print("Done")
         return page
 
     def bl_raw_to_array(self, data_raw):
@@ -182,7 +186,7 @@ class EMSL_dump(object):
         array = [d[key] for key in d]
 
         array_sort = sorted(array, key=lambda x: x[0])
-        print len(array_sort), "basis sets will be downloaded"
+        print(len(array_sort), "basis sets will be downloaded")
 
         return array_sort
 
@@ -207,8 +211,6 @@ class EMSL_dump(object):
         @return: (name, description, data-pairs)
         @rtype : tuple
         """
-
-        d = []
 
         #Each basis set block starts and ends with ****. Find the region
         #containing all the basis blocks using the first and last ****.
@@ -467,7 +469,7 @@ class EMSL_dump(object):
         e = data.find("$END")
         if (b == -1 or data.find("$DATA$END") != -1):
             if self.debug:
-                print data
+                print(data)
             raise Exception("WARNING not DATA")
         else:
             #ELEM replacements are required by buggy CRENBL ECP basis set
@@ -492,16 +494,16 @@ class EMSL_dump(object):
 
                 if "$" in data_elt:
                     if self.debug:
-                        print "Eror",
+                        print("Eror",)
                     raise Exception("WARNING bad split")
 
                 if elt_long_th == elt_long_exp:
                     d.append([elt, data_elt.strip()])
                 else:
                     if self.debug:
-                        print "th", elt_long_th
-                        print "exp", elt_long_exp
-                        print "abv", elt
+                        print("th", elt_long_th)
+                        print("exp", elt_long_exp)
+                        print("abv", elt)
                     sys.stderr.write("WARNING not good ELEMENT\n")
 
         return [name, des, d]
@@ -570,7 +572,7 @@ class EMSL_dump(object):
                 while attemps < attemps_max:
                     m = "URL: {0} params {1} attempt {2}".format(url, params,
                                                                  attemps)
-                    print m
+                    print(m)
                     text = self.requests.get(url, params=params).text
 
                     try:
@@ -586,7 +588,7 @@ class EMSL_dump(object):
                     q_out.put(basis_data)
                 except:
                     if self.debug:
-                        print "Fail on q_out.put", basis_data
+                        print("Fail on q_out.put", basis_data)
                     raise
                 else:
                     q_in.task_done()
@@ -594,7 +596,7 @@ class EMSL_dump(object):
 
         def enqueue():
             for [name, path_xml, des, elts] in list_basis_array:
-                print "PARAMS", [name, path_xml, des, elts]
+                print("PARAMS", [name, path_xml, des, elts])
                 q_in.put([name, path_xml, des, elts])
 
             return 0
@@ -620,7 +622,7 @@ class EMSL_dump(object):
                         name, des])
                 conn.commit()
             except sqlite3.IntegrityError:
-                print '{:>3}'.format(i + 1), "/", nb_basis, name, "fail"
+                print('{:>3}'.format(i + 1), "/", nb_basis, name, "fail")
 
             id_ = c.lastrowid
             try:
@@ -629,10 +631,10 @@ class EMSL_dump(object):
                         [id_] + k for k in d])
                 conn.commit()
 
-                print '{:>3}'.format(i + 1), "/", nb_basis, name
+                print('{:>3}'.format(i + 1), "/", nb_basis, name)
 
             except:
-                print '{:>3}'.format(i + 1), "/", nb_basis, name, "fail"
+                print('{:>3}'.format(i + 1), "/", nb_basis, name, "fail")
                 raise
 
         conn.close()

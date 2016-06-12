@@ -2,7 +2,8 @@
 # -*- coding:utf-8 mode:python; tab-width:4; indent-tabs-mode:nil; py-indent-offset:4 -*-
 ##
 
-import conversion
+from __future__ import print_function, absolute_import
+from . import conversion
 import glob
 import json
 import os
@@ -12,22 +13,22 @@ import sys
 def checkSQLite3(db_path, fmt):
     # Check if db file is readable
     if not os.access(db_path, os.R_OK):
-        print >>sys.stderr, "Db file %s is not readable" % (db_path)
+        print("Db file %s is not readable" % (db_path), file=sys.stderr)
         raise IOError
 
     if not os.path.isfile(db_path):
-        print >>sys.stderr, "Db file %s is not... a file!" % (db_path)
+        print("Db file %s is not... a file!" % (db_path), file=sys.stderr)
         raise IOError
 
     if os.path.getsize(db_path) < 100:  # SQLite database file header is 100 bytes
-        print >>sys.stderr, "Db file %s is not a SQLite file!" % (db_path)
+        print("Db file %s is not a SQLite file!" % (db_path), file=sys.stderr)
         raise IOError
 
     with open(db_path, 'rb') as fd:
         header = fd.read(100)
 
-    if header[:16] != 'SQLite format 3\x00':
-        print >>sys.stderr, "Db file %s is not in SQLiteFormat3!" % (db_path)
+    if header[:15] != b'SQLite format 3':
+        print("Db file %s is not in SQLiteFormat3!" % (db_path), file=sys.stderr)
         raise IOError
 
     # Check if the file system allows I/O on sqlite3 (lustre)
@@ -35,8 +36,8 @@ def checkSQLite3(db_path, fmt):
     try:
         EMSL_local(db_path, fmt).get_available_basis_sets()
     except sqlite3.OperationalError:
-        print >>sys.stdrerr, "I/O Error for you file system"
-        print >>sys.stderr, "Try some fixe"
+        print("I/O Error for you file system", file=sys.stdrerr)
+        print("Try some fixes", file=sys.stderr)
         new_db_path = "/dev/shm/%d.db" % (os.getpid())
         os.system("cp %s %s" % (db_path, new_db_path))
         db_path = new_db_path
@@ -48,11 +49,11 @@ def checkSQLite3(db_path, fmt):
     try:
         EMSL_local(db_path, fmt).get_available_basis_sets()
     except:
-        print >>sys.stderr, "Sorry..."
+        print("Sorry...", file=sys.stderr)
         os.system("rm -f /dev/shm/%d.db" % (os.getpid()))
         raise
     else:
-        print >>sys.stderr, "Working !"
+        print("Working !", file=sys.stderr)
         changed = True
         return db_path, changed
 
@@ -416,7 +417,7 @@ class EMSL_local(object):
         element_set = set([e.lower() for e in elements])
 
         flist = self.get_basis_files(fmt)
-        for entry in sorted(flist):
+        for entry in sorted(flist, key=lambda d: d['name']):
             t = (entry["name"], "db/" + entry["file"].split("db/", 1)[-1])
             if entry["name"] in allowed_basis_names or not allowed_basis_names:
                 if not elements:
@@ -722,11 +723,11 @@ if __name__ == "__main__":
     e = EMSL_local("EMSL.db")
     l = e.get_available_basis_sets()
     for i in l:
-        print i
+        print(i)
 
     l = e.get_available_elements("pc-0")
-    print l
+    print(l)
 
     l = e.get_basis("cc-pVTZ", ["H", "He"])
     for i in l:
-        print i
+        print(i)

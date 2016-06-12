@@ -38,13 +38,15 @@ Example of use:
     ./EMSL_api.py get_basis_data --basis 3-21++G*
 """
 
-version = "0.2.3"
+from __future__ import print_function, absolute_import
+
+
 
 import sys
-
-from src.docopt import docopt
-from src.EMSL_dump import EMSL_dump
-from src.EMSL_local import EMSL_local
+from ebsel import version
+from ebsel.docopt import docopt
+from ebsel.EMSL_dump import EMSL_dump
+from ebsel.EMSL_local import EMSL_local
 
 db_map = {"gamess-us" : "db/Gamess-us.db",
           "nwchem" : "db/NWChem.db",
@@ -62,7 +64,7 @@ if __name__ == '__main__':
 
     format_dict = EMSL_dump().get_list_format()
     if format not in format_dict:
-        print "Format %s doesn't exist. Run list_formats to get the list of formats." % (format)
+        print("Format %s doesn't exist. Run list_formats to get the list of formats." % (format))
         sys.exit(1)
 
     if arguments["--db_path"]:
@@ -85,7 +87,7 @@ if __name__ == '__main__':
 
         ct = 1
         for name, des in l:
-            print "{} - '{}' || {:<50}".format(ct, name, des)
+            print("{} - '{}' || {:<50}".format(ct, name, des))
             ct += 1
 
     #  _     _     _     _____ _                           _
@@ -99,7 +101,7 @@ if __name__ == '__main__':
 
         basis_name = arguments["--basis"]
         l = e.get_available_elements(basis_name)
-        print ", ".join(l)
+        print(", ".join(l))
 
     # ______           _           _       _
     # | ___ \         (_)         | |     | |
@@ -125,9 +127,9 @@ if __name__ == '__main__':
 
             with open(path, 'w') as f:
                 f.write(str_ + "\n")
-            print path
+            print(path)
         else:
-            print str_
+            print(str_)
 
     #  _     _     _      __                           _
     # | |   (_)   | |    / _|                         | |
@@ -138,7 +140,7 @@ if __name__ == '__main__':
     if arguments["list_formats"]:
         e = EMSL_dump()
         for i in e.get_list_format():
-            print i
+            print(i)
 
     #  _____                _             _ _
     # /  __ \              | |           | | |
