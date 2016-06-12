@@ -434,7 +434,7 @@ class EMSL_local(object):
 
         return names
     
-    def get_available_basis_sets(self, elements=[], allowed_basis_names=[]):
+    def get_available_basis_sets(self, elements=[], allowed_basis_names=[], search_extra=False):
         """Return all the basis set names that contain the specified elements.
          If elements is empty, just get all basis set names.
          If allowed_basis_names is set, only accept results with names in
@@ -490,10 +490,12 @@ class EMSL_local(object):
         final = [i[:] for i in info]
 
         #look for additional basis set data from the file system
-        extra = self.get_available_basis_sets_fs(self.fmt, elements=elements,
+        if search_extra:
+            extra = self.get_available_basis_sets_fs(self.fmt, elements=elements,
                                                  allowed_basis_names=allowed_basis_names)
 
-        return final + extra
+            return final + extra
+        return final
 
     def get_available_elements_fs(self, fmt, basis_name):
         """Get the available elements from a basis set that is stored
